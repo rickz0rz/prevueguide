@@ -84,17 +84,17 @@ public static class Generators
         return resultTexture;
     }
 
-    public static IntPtr GenerateFrame(string baseAssetsDirectory, IntPtr renderer,
-        int width, int height, SDL.SDL_Color backgroundColor, int scale = 1)
+    public static IntPtr GenerateFrame(IntPtr renderer, int width, int height,
+        SDL.SDL_Color backgroundColor, int scale = 1)
     {
-        var upperLeft = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_upper_left_2x_smooth.png");
-        var upperRight = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_upper_right_2x_smooth.png");
-        var lowerLeft = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_lower_left_2x_smooth.png");
-        var lowerRight = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_lower_right_2x_smooth.png");
-        var left = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_left_2x.png");
-        var right = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_right_2x.png");
-        var upper = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_upper_2x.png");
-        var lower = LoadImageToTexture(renderer, $"{baseAssetsDirectory}/frame_lower_2x.png");
+        var upperLeft = LoadImageToTexture(renderer, $"assets/frame_upper_left_2x_smooth.png");
+        var upperRight = LoadImageToTexture(renderer, $"assets/frame_upper_right_2x_smooth.png");
+        var lowerLeft = LoadImageToTexture(renderer, $"assets/frame_lower_left_2x_smooth.png");
+        var lowerRight = LoadImageToTexture(renderer, $"assets/frame_lower_right_2x_smooth.png");
+        var left = LoadImageToTexture(renderer, $"assets/frame_left_2x.png");
+        var right = LoadImageToTexture(renderer, $"assets/frame_right_2x.png");
+        var upper = LoadImageToTexture(renderer, $"assets/frame_upper_2x.png");
+        var lower = LoadImageToTexture(renderer, $"assets/frame_lower_2x.png");
 
         var resultTexture = SDL.SDL_CreateTexture(renderer, SDL.SDL_PIXELFORMAT_RGBA8888,
             (int)SDL.SDL_TextureAccess.SDL_TEXTUREACCESS_TARGET, width * scale,

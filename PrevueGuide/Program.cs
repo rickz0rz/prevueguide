@@ -22,7 +22,6 @@ IntPtr bigFrameTexture;
 IntPtr bigFrameText;
 
 var scale = 2;
-var baseAssetsDirectory = "/Users/RJ/Desktop";
 var running = true;
 
 var clockBackgroundColor = new SDL_Color { a = 255, r = 34, g = 41, b = 141 };
@@ -77,17 +76,15 @@ void Setup()
     _ = SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode.SDL_BLENDMODE_BLEND);
 
     SDL_ttf.TTF_Init();
-    prevueGrid = SDL_ttf.TTF_OpenFont("/Users/rj/Library/Fonts/PrevueGrid.ttf", 25 * scale); // Maybe 50? Test.
+    prevueGrid = SDL_ttf.TTF_OpenFont("assets/PrevueGrid.ttf", 25 * scale); // Maybe 50? Test.
 
     SDL_image.IMG_Init(SDL_image.IMG_InitFlags.IMG_INIT_PNG);
 
-    clockFrameTexture = Generators.GenerateFrame(baseAssetsDirectory, renderer, 144, 34,
-        clockBackgroundColor, scale);
-    timeboxFrameTexture = Generators.LoadImageToTexture(renderer, $"{baseAssetsDirectory}/timebox_frame_2x_smooth.png");
-    timeboxLastFrameTexture =
-        Generators.LoadImageToTexture(renderer, $"{baseAssetsDirectory}/timebox_last_frame_2x_smooth.png");
-    channelFrameTexture = Generators.LoadImageToTexture(renderer, $"{baseAssetsDirectory}/channel_frame_2x_smooth.png");
-    bigFrameTexture = Generators.GenerateFrame(baseAssetsDirectory, renderer, 300, 80,
+    clockFrameTexture = Generators.GenerateFrame(renderer, 144, 34, clockBackgroundColor, scale);
+    timeboxFrameTexture = Generators.LoadImageToTexture(renderer, "assets/timebox_frame_2x_smooth.png");
+    timeboxLastFrameTexture = Generators.LoadImageToTexture(renderer, "assets/timebox_last_frame_2x_smooth.png");
+    channelFrameTexture = Generators.LoadImageToTexture(renderer, "assets/channel_frame_2x_smooth.png");
+    bigFrameTexture = Generators.GenerateFrame(renderer, 300, 80,
         new SDL_Color { a = 255, r = 192, g = 0, b = 0 }, scale);
     bigFrameText = Generators.GenerateDropShadowText(renderer, prevueGrid, "PrrRRrreeVuuEEE",
         new SDL_Color { a = 255, r = 203, g = 209, b = 0 }, scale);
