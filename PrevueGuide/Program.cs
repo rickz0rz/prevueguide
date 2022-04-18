@@ -40,8 +40,9 @@ Texture? bigFrameTexture = null;
 Texture? bigFrameText1 = null;
 Texture? bigFrameText2 = null;
 
-var scale = 2;
+var scale = 1;
 var running = true;
+var showFrameRate = false;
 
 var gridTextYellow = new SDL_Color { a = 255, r = 203, g = 209, b = 0 };
 var gridTextWhite = new SDL_Color { a = 255, r = 170, g = 170, b = 170 };
@@ -193,6 +194,9 @@ void PollEvents()
         {
             switch (sdlEvent.key.keysym.sym)
             {
+                case SDL_Keycode.SDLK_f:
+                    showFrameRate = !showFrameRate;
+                    break;
                 case SDL_Keycode.SDLK_q:
                     running = false;
                     break;
@@ -359,8 +363,7 @@ void Render()
     _ = SDL_RenderCopy(renderer, gridTexture.SdlTexture, IntPtr.Zero, ref gridDstRect);
 
     // Draw FPS.
-    var showFps = true;
-    if (showFps && frameTimeList.Any())
+    if (showFrameRate && frameTimeList.Any())
     {
         // Generate average FPS.
         var averageFrameTime = frameTimeList.Average();
