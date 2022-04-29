@@ -30,23 +30,22 @@ public static class Generators
 
     public enum ArrowType
     {
-        None,
-        Single,
-        Double
+        None = 0,
+        Single = 34,
+        Double = 44
     }
 
-    /*
-    public static IntPtr GenerateFrameText(IntPtr renderer, IntPtr font, SDL.SDL_Color fontColor, string text,
+    public static IntPtr GenerateFrameText(IntPtr renderer, IntPtr font, SDL_Color fontColor, string text,
         int maximumWidth, ArrowType leftArrowType = ArrowType.None, ArrowType rightArrowType = ArrowType.None,
         int scale = 1)
     {
         // Get the string length.
-        _ = SDL_ttf.TTF_SizeText(font, text, out var originalWidth, out _);
+        _ = TTF_SizeText(font, text, out var originalWidth, out _);
 
         // These values are made up.
         // Arrow-types only apply for the first two lines of a multi-line (full-width) entry.
-        var leftMargin = leftArrowType == ArrowType.Single ? 34 : leftArrowType == ArrowType.Double ? 44 : 0;
-        var rightMargin = rightArrowType == ArrowType.Single ? 34 : rightArrowType == ArrowType.Double ? 44 : 0;
+        var leftMargin = (int)leftArrowType;
+        var rightMargin = (int)rightArrowType;
 
         if ((originalWidth - leftMargin - rightMargin) * scale <= maximumWidth)
         {
@@ -59,6 +58,7 @@ public static class Generators
         if (splitString.Length == 1)
         {
             // If a string can't be split on a space after the first word, then wrap the word itself in the middle.
+
         }
         else
         {
@@ -67,7 +67,6 @@ public static class Generators
 
         throw new NotImplementedException();
     }
-    */
 
     public static IntPtr GenerateDropShadowText(IntPtr renderer, IntPtr font, string text,
         SDL_Color fontColor, int scale = 1)
@@ -104,25 +103,25 @@ public static class Generators
             _ = SDL_QueryTexture(outlineTexture.SdlTexture, out _, out _, out var w1, out var h1);
             var dstRect1 = new SDL_Rect
                 { h = h1, w = w1, x = horizontalOffset * scale, y = verticalOffset * scale };
-            SDL_RenderCopy(renderer, outlineTexture.SdlTexture, IntPtr.Zero, ref dstRect1);
+            _ = SDL_RenderCopy(renderer, outlineTexture.SdlTexture, IntPtr.Zero, ref dstRect1);
 
             // Draw clock, black shadow main
             _ = SDL_QueryTexture(shadowTexture.SdlTexture, out _, out _, out var w2, out var h2);
             var dstRect2 = new SDL_Rect
                 { h = h2, w = w2, x = (horizontalOffset + 2) * scale, y = (verticalOffset + 2) * scale };
-            SDL_RenderCopy(renderer, shadowTexture.SdlTexture, IntPtr.Zero, ref dstRect2);
+            _ = SDL_RenderCopy(renderer, shadowTexture.SdlTexture, IntPtr.Zero, ref dstRect2);
 
             // Draw clock, black outline
             _ = SDL_QueryTexture(outlineTexture.SdlTexture, out _, out _, out var w3, out var h3);
             var dstRect3 = new SDL_Rect
                 { h = h3, w = w3, x = (horizontalOffset - 1) * scale, y = (verticalOffset - 1) * scale };
-            SDL_RenderCopy(renderer, outlineTexture.SdlTexture, IntPtr.Zero, ref dstRect3);
+            _ = SDL_RenderCopy(renderer, outlineTexture.SdlTexture, IntPtr.Zero, ref dstRect3);
 
             // Draw clock, main without outline
             _ = SDL_QueryTexture(mainTexture.SdlTexture, out _, out _, out var w4, out var h4);
             var dstRect4 = new SDL_Rect
                 { h = h4, w = w4, x = horizontalOffset * scale, y = verticalOffset * scale };
-            SDL_RenderCopy(renderer, mainTexture.SdlTexture, IntPtr.Zero, ref dstRect4);
+            _ = SDL_RenderCopy(renderer, mainTexture.SdlTexture, IntPtr.Zero, ref dstRect4);
         }
 
         return resultTexture;

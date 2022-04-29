@@ -4,7 +4,6 @@ using System.Xml;
 using System.Xml.Serialization;
 using PrevueGuide;
 using PrevueGuide.SDLWrappers;
-using SDL2;
 using XmlTv.Model;
 using static SDL2.SDL;
 using static SDL2.SDL_image;
@@ -14,6 +13,9 @@ const int windowWidth = 716;
 const int windowHeight = 436;
 
 const int standardRowHeight = 56;
+const int firstColumnWidth = 172;
+const int secondColumnWidth = 172;
+const int thirdColumnWidth = 208;
 
 var frameTimeList = new List<long>();
 
@@ -23,9 +25,30 @@ var listings = new Dictionary<Channel, List<string>>();
 listings.Add(new Channel { CallSign = "PREVUE", ChannelNumber = "1" },
     new List<string> { "Prevue Guide", "Before you view, Prevue!" });
 
+// Each font has its own potential X and Y offset... should add those as options.
+// prevueGrid = TTF_OpenFont("/Users/rj/Library/Fonts/DINBd___.ttf", 25 * scale);
+
+var fontConfigurationMap = new Dictionary<string, FontConfiguration>
+{
+    {
+        "PrevueGrid", new FontConfiguration
+        {
+            Filename = "assets/PrevueGrid.ttf",
+            Size = 25
+        }
+    },
+    {
+        "ab-preview", new FontConfiguration
+        {
+            Filename = "assets/ab-preview.ttf",
+            Size = 23
+        }
+    }
+};
+
 IntPtr window;
 IntPtr renderer;
-IntPtr prevueGrid;
+IntPtr openedTtfFont;
 
 DateTime time = DateTime.UnixEpoch;
 
@@ -40,9 +63,12 @@ Texture? bigFrameTexture = null;
 Texture? bigFrameText1 = null;
 Texture? bigFrameText2 = null;
 
+const int numberOfFrameTimesToCapture = 60;
+
 var scale = 1;
 var running = true;
 var showFrameRate = false;
+var limitFps = false;
 
 var gridTextYellow = new SDL_Color { a = 255, r = 203, g = 209, b = 0 };
 var gridTextWhite = new SDL_Color { a = 255, r = 170, g = 170, b = 170 };
@@ -52,6 +78,8 @@ var gridDefaultBlue = new SDL_Color { a = 255, r = 3, g = 0, b = 88 };
 
 var gridOffset = 0;
 var scrollingTest = 0;
+
+var fontMap = new Dictionary<char, int>();
 
 Setup();
 
@@ -72,13 +100,13 @@ void GenerateBigText()
     var firstLine = firstListing.Count >= 1 ? firstListing[0] : " ";
     Console.WriteLine($"//| {firstLine}");
 
-    bigFrameText1 = new Texture(Generators.GenerateDropShadowText(renderer, prevueGrid, firstLine,
+    bigFrameText1 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, firstLine,
         gridTextWhite, scale));
 
     var secondLine = firstListing.Count >= 2 ? firstListing[1] : " ";
     Console.WriteLine($"\\\\| {secondLine}");
 
-    bigFrameText2 = new Texture(Generators.GenerateDropShadowText(renderer, prevueGrid, secondLine,
+    bigFrameText2 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, secondLine,
         gridTextWhite, scale));
 }
 
@@ -118,6 +146,87 @@ void ProcessXmlTvFile(string filename)
     }
 }
 
+IEnumerable<string> CalculateLineWidths(string targetString, int defaultLineWidth, Dictionary<int, int> specifiedLineWidths)
+{
+    var currentLineLength = 0;
+    var currentLineNumber = 1;
+    var currentLine = string.Empty;
+    var renderedLines = new List<string>();
+
+    var lineWidth = specifiedLineWidths.ContainsKey(currentLineNumber)
+        ? specifiedLineWidths[currentLineNumber]
+        : defaultLineWidth;
+
+    foreach (var component in targetString.Split(' '))
+    {
+        var componentLength = component.ToCharArray().Sum(c => fontMap[c]);
+        var paddedComponentLength = (string.IsNullOrWhiteSpace(currentLine) ? 0 : fontMap[' ']) + componentLength;
+
+        if (currentLineLength + paddedComponentLength > lineWidth)
+        {
+            if (!string.IsNullOrWhiteSpace(currentLine))
+            {
+                renderedLines.Add(currentLine);
+                currentLine = component;
+                currentLineLength = componentLength;
+
+                currentLineNumber++;
+                lineWidth = specifiedLineWidths.ContainsKey(currentLineNumber)
+                    ? specifiedLineWidths[currentLineNumber]
+                    : defaultLineWidth;
+            }
+            else
+            {
+                // We have to split the line in the middle somewhere.
+                var chars = component.ToCharArray();
+                var componentSubLength = 0;
+                var chunk = string.Empty;
+
+                foreach (var targetChar in chars)
+                {
+                    var glyphWidth = fontMap[targetChar];
+                    var newSubLength = componentSubLength + glyphWidth;
+
+                    if (newSubLength > lineWidth)
+                    {
+                        renderedLines.Add(chunk);
+                        chunk = string.Empty;
+                        componentSubLength = 0;
+
+                        currentLineNumber++;
+                        lineWidth = specifiedLineWidths.ContainsKey(currentLineNumber)
+                            ? specifiedLineWidths[currentLineNumber]
+                            : defaultLineWidth;
+                    }
+
+                    chunk = $"{chunk}{targetChar}";
+                    componentSubLength += glyphWidth;
+                }
+
+                if (!string.IsNullOrWhiteSpace(chunk))
+                {
+                    var padding = string.IsNullOrWhiteSpace(currentLine) ? string.Empty : " ";
+                    currentLine = $"{currentLine}{padding}{chunk}";
+                    currentLineLength += componentSubLength;
+                }
+            }
+        }
+        else
+        {
+            var padding = string.IsNullOrWhiteSpace(currentLine) ? string.Empty : " ";
+            currentLine = $"{currentLine}{padding}{component}";
+            currentLineLength += paddedComponentLength;
+        }
+    }
+
+    if (!string.IsNullOrWhiteSpace(currentLine))
+    {
+        renderedLines.Add(currentLine);
+    }
+
+    return renderedLines;
+}
+
 // Setup all of the SDL resources we'll need to display a window.
 void Setup()
 {
@@ -127,10 +236,8 @@ void Setup()
         Console.WriteLine($"There was an issue initializing SDL. {SDL_GetError()}");
     }
 
-    // SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-
-    TTF_Init();
-    IMG_Init(IMG_InitFlags.IMG_INIT_PNG);
+    _ = TTF_Init();
+    _ = IMG_Init(IMG_InitFlags.IMG_INIT_PNG);
 
     // Create a new window given a title, size, and passes it a flag indicating it should be shown.
     window = SDL_CreateWindow(
@@ -164,7 +271,23 @@ void Setup()
 
     _ = SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode.SDL_BLENDMODE_BLEND);
 
-    prevueGrid = TTF_OpenFont("assets/PrevueGrid.ttf", 25 * scale);
+    var font = fontConfigurationMap["PrevueGrid"];
+    openedTtfFont = TTF_OpenFont(font.Filename, font.Size * scale);
+
+    // Generate a font width map.
+    for (var i = 0; i < 256; i++)
+    {
+        var c = (char)i;
+        _ = TTF_SizeText(openedTtfFont, $"{c}", out var w, out _);
+        fontMap[c] = w;
+    }
+
+    // Test.
+    foreach (var line in CalculateLineWidths("Prevue Guide: Before you view, Prevue!",
+                 (240 * scale), new Dictionary<int, int>()))
+    {
+        Console.WriteLine($" >> {line}");
+    }
 
     clockFrameTexture = new Texture(Generators.GenerateFrame(renderer, 144, 34, clockBackgroundColor, scale));
     timeboxFrameTexture = new Texture(renderer, "assets/timebox_frame_2x_smooth.png");
@@ -197,6 +320,9 @@ void PollEvents()
                 case SDL_Keycode.SDLK_f:
                     showFrameRate = !showFrameRate;
                     break;
+                case SDL_Keycode.SDLK_l:
+                    limitFps = !limitFps;
+                    break;
                 case SDL_Keycode.SDLK_q:
                     running = false;
                     break;
@@ -222,28 +348,20 @@ IntPtr GenerateGridTexture()
         time = now;
 
         timeTexture?.Dispose();
-        timeTexture = new Texture(Generators.GenerateDropShadowText(renderer, prevueGrid, now.ToString("h:mm:ss"),
+        timeTexture = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, now.ToString("h:mm:ss"),
             gridTextWhite, scale));
     }
 
     if (regenerateGridTextures)
     {
-        Console.WriteLine("Regenerating grid textures.");
         GenerateBigText();
         regenerateGridTextures = false;
-        Console.WriteLine("Regenerating grid textures completed.");
     }
 
-    // Render the entirety of the grid to its own texture,
-    // that way we can properly cut off content from the upper panel.
-    // Also allows us to shift the grid up and down by simply changing the texture Y
-    // by a few rows down.
-
-    var gridTexture = SDL_CreateTexture(renderer, SDL.SDL_PIXELFORMAT_RGBA8888,
+    var gridTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
                    (int)SDL_TextureAccess.SDL_TEXTUREACCESS_TARGET, windowWidth * scale,
                    windowHeight * scale);
-
-    _ = SDL_SetTextureBlendMode(gridTexture, SDL.SDL_BlendMode.SDL_BLENDMODE_BLEND);
+    _ = SDL_SetTextureBlendMode(gridTexture, SDL_BlendMode.SDL_BLENDMODE_BLEND);
 
     // Switch to the texture for rendering.
     using (_ = new RenderingTarget(renderer, gridTexture))
@@ -256,7 +374,7 @@ IntPtr GenerateGridTexture()
         const int frameY = 206; // Start below frame.
 
         var horizontalOffset = 62;
-        var verticalOffset = 7;
+        const int verticalOffset = 7;
 
         // Quick guess. 110 frames for a full grid push @ 112 (2x) / 56 (1x) height.
         // That means roughly 2 frames per pixel going up.
@@ -298,33 +416,29 @@ IntPtr GenerateGridTexture()
         };
         _ = SDL_RenderCopy(renderer, bigFrameText2.SdlTexture, IntPtr.Zero, ref bftDstRect2);
 
-
         // Draw the clock frame.
         _ = SDL_QueryTexture(clockFrameTexture.SdlTexture, out _, out _, out var clockFrameWidth, out var clockFrameHeight);
         var clockFrameDstRect = new SDL_Rect { h = clockFrameHeight, w = clockFrameWidth, x = 8 * scale, y = 0 };
         _ = SDL_RenderCopy(renderer, clockFrameTexture.SdlTexture, IntPtr.Zero, ref clockFrameDstRect);
 
-        // Draw the time boxes.
-        {
-            // First two time boxes.
-            _ = SDL_QueryTexture(timeboxFrameTexture.SdlTexture, out uint _, out int _, out int tbw, out int tbh);
-            var dstRect1 = new SDL_Rect { h = tbh, w = tbw, x = 152 * scale, y = 0 };
-            _ = SDL_RenderCopy(renderer, timeboxFrameTexture.SdlTexture, IntPtr.Zero, ref dstRect1);
-            var dstRect2 = new SDL_Rect { h = tbh, w = tbw, x = 324 * scale, y = 0 };
-            _ = SDL_RenderCopy(renderer, timeboxFrameTexture.SdlTexture, IntPtr.Zero, ref dstRect2);
+        // First two time boxes.
+        _ = SDL_QueryTexture(timeboxFrameTexture.SdlTexture, out uint _, out int _, out int tbw, out int tbh);
+        var timeRect1 = new SDL_Rect { h = tbh, w = tbw, x = 152 * scale, y = 0 };
+        _ = SDL_RenderCopy(renderer, timeboxFrameTexture.SdlTexture, IntPtr.Zero, ref timeRect1);
+        var timeRect2 = new SDL_Rect { h = tbh, w = tbw, x = 324 * scale, y = 0 };
+        _ = SDL_RenderCopy(renderer, timeboxFrameTexture.SdlTexture, IntPtr.Zero, ref timeRect2);
 
-            // Last one.
-            _ = SDL_QueryTexture(timeboxLastFrameTexture.SdlTexture, out _, out _, out var tblw, out var tblh);
-            var dstRect = new SDL_Rect { h = tblh, w = tblw, x = 496 * scale, y = 0 };
-            _ = SDL_RenderCopy(renderer, timeboxLastFrameTexture.SdlTexture, IntPtr.Zero, ref dstRect);
-        }
+        // Last one.
+        _ = SDL_QueryTexture(timeboxLastFrameTexture.SdlTexture, out _, out _, out var tblw, out var tblh);
+        var timeRect3 = new SDL_Rect { h = tblh, w = tblw, x = 496 * scale, y = 0 };
+        _ = SDL_RenderCopy(renderer, timeboxLastFrameTexture.SdlTexture, IntPtr.Zero, ref timeRect3);
 
         if (DateTime.Now.Hour is 00 or >= 10)
             horizontalOffset -= 12;
 
         // Draw 3 channel frames.
         {
-            var baseChannelY = 34;
+            const int baseChannelY = 34;
             _ = SDL_QueryTexture(channelFrameTexture.SdlTexture, out _, out _, out var w, out var h);
             var dstRect1 = new SDL_Rect
                 { h = h, w = w, x = 8 * scale, y = baseChannelY * scale };
@@ -349,7 +463,8 @@ IntPtr GenerateGridTexture()
 // Renders to the window.
 void Render()
 {
-    var stopWatch = Stopwatch.StartNew();
+    var frameDrawStopWatch = Stopwatch.StartNew();
+    var frameDelayStopWatch = Stopwatch.StartNew();
 
     _ = SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
     _ = SDL_RenderClear(renderer);
@@ -369,7 +484,7 @@ void Render()
         var averageFrameTime = frameTimeList.Average();
         var averageFps = 1000 / averageFrameTime;
 
-        var fpsTexture = Generators.GenerateDropShadowText(renderer, prevueGrid,
+        var fpsTexture = Generators.GenerateDropShadowText(renderer, openedTtfFont,
             $"FPS: {averageFps:F}", gridTextYellow, scale);
 
         _ = SDL_QueryTexture(fpsTexture, out _, out _, out var fpsTextureWidth, out var fpsTextureHeight);
@@ -381,23 +496,21 @@ void Render()
     // Switches out the currently presented render surface with the one we just did work on.
     SDL_RenderPresent(renderer);
 
-    stopWatch.Stop();
+    frameDelayStopWatch.Stop();
 
-    const bool limitFps = false;
     const int targetFps = 30;
-
     if (limitFps)
     {
         const int targetDuration = 1000 / targetFps;
-        var duration = (targetDuration - stopWatch.ElapsedMilliseconds);
+        var duration = (targetDuration - frameDelayStopWatch.ElapsedMilliseconds);
 
         if (duration > 0)
             SDL_Delay((uint)duration);
     }
 
-    frameTimeList.Add(stopWatch.ElapsedMilliseconds);
+    frameTimeList.Add(frameDrawStopWatch.ElapsedMilliseconds);
 
-    while (frameTimeList.Count > 5)
+    while (frameTimeList.Count > numberOfFrameTimesToCapture)
     {
         frameTimeList.RemoveAt(0);
     }
@@ -420,7 +533,7 @@ void CleanUp()
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
-    TTF_CloseFont(prevueGrid);
+    TTF_CloseFont(openedTtfFont);
     TTF_Quit();
     SDL_Quit();
 }
@@ -429,4 +542,10 @@ record Channel
 {
     public string ChannelNumber { get; init; }
     public string CallSign { get; init; }
+}
+
+record FontConfiguration
+{
+    public string Filename { get; init; }
+    public int Size { get; set; }
 }
