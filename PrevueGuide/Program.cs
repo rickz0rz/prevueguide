@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿
+using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Xml;
 using System.Xml.Serialization;
@@ -17,16 +19,28 @@ const int firstColumnWidth = 172;
 const int secondColumnWidth = 172;
 const int thirdColumnWidth = 208;
 
+const string databaseFilename = "listings.db";
+
 var frameTimeList = new List<long>();
 
 var regenerateGridTextures = false;
 
-var listings = new Dictionary<Channel, List<string>>();
-listings.Add(new Channel { CallSign = "PREVUE", ChannelNumber = "1" },
-    new List<string> { "Prevue Guide", "Before you view, Prevue!" });
+var data = new PrevueGuide.Core.Data.SQLite.SQLiteListingsData(databaseFilename);
 
-// Each font has its own potential X and Y offset... should add those as options.
-// prevueGrid = TTF_OpenFont("/Users/rj/Library/Fonts/DINBd___.ttf", 25 * scale);
+var channelLineUpStopwatch = Stopwatch.StartNew();
+var channelLineUp = await data.GetChannelLineup();
+Console.WriteLine($"Channel line-up loaded. {channelLineUp.Count()} channels found in {channelLineUpStopwatch.ElapsedMilliseconds} ms.");
+
+/* Ultimately we want to find shows that have:
+   - A start date before the beginning of the current 1/2 hour block AND an end date during or after the current visible times [left arrow]
+   - A start date during the current visible times AND an end date after the current visible times [right arrow]
+   - A combination of the above (before current 1/2 block AND after 1.5 visible hours) [both arrows]
+   - A start time during the 1.5 hours visible and an end time during the 1.5 hours visible [no arrows]
+   For start times, we will align on 15 minute increments. If a show starts after 4:15, count that as 4:30 but 4:15 and earlier is 4:00pm */
+
+var channelListingsStopwatch = Stopwatch.StartNew();
+var channelListings = await data.GetChannelListings(DateTime.Now.AddMinutes(-15), DateTime.Now.AddMinutes(105));
+Console.WriteLine($"Channel listings loaded. {channelListings.Count()} listings found in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
 
 var fontConfigurationMap = new Dictionary<string, FontConfiguration>
 {
@@ -34,14 +48,21 @@ var fontConfigurationMap = new Dictionary<string, FontConfiguration>
         "PrevueGrid", new FontConfiguration
         {
             Filename = "assets/PrevueGrid.ttf",
-            Size = 25
+            PointSize = 25
         }
     },
     {
         "ab-preview", new FontConfiguration
         {
             Filename = "assets/ab-preview.ttf",
-            Size = 23
+            PointSize = 23
+        }
+    },
+    {
+        "DIN Bold", new FontConfiguration // Hollywood
+        {
+            Filename = "/Users/rj/Library/Fonts/DINBd___.ttf",
+            PointSize = 25
         }
     }
 };
@@ -95,22 +116,19 @@ void GenerateBigText()
 {
     Console.WriteLine("Generating texture:");
 
-    var firstListing = listings.First().Value;
+    var textLength = CalculateLineWidths(channelListings.FirstOrDefault()?.Title, firstColumnWidth,
+        new Dictionary<int, int>());
 
-    var firstLine = firstListing.Count >= 1 ? firstListing[0] : " ";
-    Console.WriteLine($"//| {firstLine}");
+    var firstLine =  channelListings.FirstOrDefault()?.Title ?? " ";
+    var secondLine = " ";
 
     bigFrameText1 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, firstLine,
         gridTextWhite, scale));
-
-    var secondLine = firstListing.Count >= 2 ? firstListing[1] : " ";
-    Console.WriteLine($"\\\\| {secondLine}");
-
     bigFrameText2 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, secondLine,
         gridTextWhite, scale));
 }
 
-void ProcessXmlTvFile(string filename)
+async Task ProcessXmlTvFile(string filename)
 {
     try
     {
@@ -122,20 +140,38 @@ void ProcessXmlTvFile(string filename)
             DtdProcessing = DtdProcessing.Ignore
         };
 
-        using var fileStream = new FileStream(filename, FileMode.Open);
+        await using var fileStream = new FileStream(filename, FileMode.Open);
         using var xmlReader = XmlReader.Create(fileStream, xmlReaderSettings);
         var tv = (Tv)new XmlSerializer(typeof(Tv)).Deserialize(xmlReader)!;
 
-        var firstTvChannel = tv.Channel.First();
-        var firstTvChannelProgram = tv.Programme.First(p => p.Channel == firstTvChannel.Id);
+        Console.WriteLine("Importing channel listing data...");
 
-        listings.Clear();
-        listings.Add(new Channel
+        var numberOfChannels = 0;
+        if (tv.Channel != null)
+        {
+            foreach (var channel in tv.Channel)
             {
-                CallSign = firstTvChannel.CallSign,
-                ChannelNumber = firstTvChannel.ChannelNumber
-            },
-            new List<string> { firstTvChannelProgram.Title.First().Text });
+                await data.AddChannelToLineup(channel.SourceName, channel.ChannelNumber, channel.CallSign);
+                numberOfChannels++;
+            }
+        }
+        Console.WriteLine($"Imported {numberOfChannels} channels.");
+
+        var numberOfPrograms = 0;
+        if (tv.Programme != null)
+        {
+            foreach (var programme in tv.Programme)
+            {
+                var title = programme.Title.First().Text;
+                var description = programme.Desc.FirstOrDefault()?.Text ?? "";
+                await data.AddChannelListing(programme.SourceName, title, description,
+                    DateTime.ParseExact(programme.Start, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo, DateTimeStyles.AssumeLocal).ToUniversalTime(),
+                    DateTime.ParseExact(programme.Stop, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo, DateTimeStyles.AssumeLocal).ToUniversalTime());
+                numberOfPrograms++;
+            }
+        }
+        Console.WriteLine($"Imported {numberOfPrograms} programs.");
+        Console.WriteLine("Channel list imported.");
 
         regenerateGridTextures = true;
         Console.WriteLine("Prepared for regeneration.");
@@ -272,7 +308,7 @@ void Setup()
     _ = SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode.SDL_BLENDMODE_BLEND);
 
     var font = fontConfigurationMap["PrevueGrid"];
-    openedTtfFont = TTF_OpenFont(font.Filename, font.Size * scale);
+    openedTtfFont = TTF_OpenFont(font.Filename, font.PointSize * scale);
 
     // Generate a font width map.
     for (var i = 0; i < 256; i++)
@@ -280,13 +316,6 @@ void Setup()
         var c = (char)i;
         _ = TTF_SizeText(openedTtfFont, $"{c}", out var w, out _);
         fontMap[c] = w;
-    }
-
-    // Test.
-    foreach (var line in CalculateLineWidths("Prevue Guide: Before you view, Prevue!",
-                 (240 * scale), new Dictionary<int, int>()))
-    {
-        Console.WriteLine($" >> {line}");
     }
 
     clockFrameTexture = new Texture(Generators.GenerateFrame(renderer, 144, 34, clockBackgroundColor, scale));
@@ -311,7 +340,7 @@ void PollEvents()
         else if (sdlEvent.type == SDL_EventType.SDL_DROPFILE)
         {
             var filename = Marshal.PtrToStringAuto(sdlEvent.drop.file);
-            Task.Run(() => ProcessXmlTvFile(filename));
+            Task.Run(() => ProcessXmlTvFile(filename).Wait());
         }
         else if (sdlEvent.type == SDL_EventType.SDL_KEYDOWN)
         {
@@ -533,6 +562,8 @@ void CleanUp()
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
+    data.Dispose();
+
     TTF_CloseFont(openedTtfFont);
     TTF_Quit();
     SDL_Quit();
@@ -547,5 +578,7 @@ record Channel
 record FontConfiguration
 {
     public string Filename { get; init; }
-    public int Size { get; set; }
+    public int PointSize { get; init; }
+    public int XOffset { get; init; } = 0;
+    public int YOffset { get; init; } = 0;
 }

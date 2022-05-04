@@ -4,6 +4,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide", "PrevueGuide\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XmlTv", "XmlTv\XmlTv.csproj", "{61EFDFF5-898D-432C-A471-2A1C9BE2AE2E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core", "PrevueGuide.Core\PrevueGuide.Core.csproj", "{A50B408D-AE33-4FF3-B244-3CDC46812CF6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.Data.SQLite", "PrevueGuide.Core.Data.SQLite\PrevueGuide.Core.Data.SQLite.csproj", "{BA657BE5-94C3-4644-B88F-EA17817E7D5D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +22,13 @@ Global
 		{61EFDFF5-898D-432C-A471-2A1C9BE2AE2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{61EFDFF5-898D-432C-A471-2A1C9BE2AE2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{61EFDFF5-898D-432C-A471-2A1C9BE2AE2E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A50B408D-AE33-4FF3-B244-3CDC46812CF6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A50B408D-AE33-4FF3-B244-3CDC46812CF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A50B408D-AE33-4FF3-B244-3CDC46812CF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A50B408D-AE33-4FF3-B244-3CDC46812CF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA657BE5-94C3-4644-B88F-EA17817E7D5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA657BE5-94C3-4644-B88F-EA17817E7D5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA657BE5-94C3-4644-B88F-EA17817E7D5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA657BE5-94C3-4644-B88F-EA17817E7D5D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

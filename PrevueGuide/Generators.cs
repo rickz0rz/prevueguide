@@ -53,12 +53,12 @@ public static class Generators
             return GenerateDropShadowText(renderer, font, text, fontColor, scale);
         }
 
+        // TODO: Finish me
         // We have to try to split the string as much as we can here to generate the right font size.
         var splitString = text.Split(" ");
         if (splitString.Length == 1)
         {
             // If a string can't be split on a space after the first word, then wrap the word itself in the middle.
-
         }
         else
         {

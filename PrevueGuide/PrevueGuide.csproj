@@ -67,6 +67,8 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\PrevueGuide.Core.Data.SQLite\PrevueGuide.Core.Data.SQLite.csproj" />
+      <ProjectReference Include="..\PrevueGuide.Core\PrevueGuide.Core.csproj" />
       <ProjectReference Include="..\XmlTv\XmlTv.csproj" />
     </ItemGroup>
 
