@@ -5,6 +5,7 @@ namespace PrevueGuide.Core.Data.SQLite;
 
 public class SQLiteListingsData : IListingsData
 {
+    // TODO: Store ratings, closed captioning, stereo...
     private const string ChannelLineupTableName = "ChannelLineUp";
     private const string ChannelLineupIdColumnName = "ID";
     private const string ChannelLineupCallSignColumnName = "CallSign";
@@ -12,6 +13,7 @@ public class SQLiteListingsData : IListingsData
     private const string ChannelListingsTableName = "ChannelListings";
     private const string ChannelListingsChannelIdColumnName = "ChannelID";
     private const string ChannelListingsTitleColumnName = "Title";
+    private const string ChannelListingsBlockColumnName = "Block";
     private const string ChannelListingsDescriptionColumnName = "Description";
     private const string ChannelListingsStartTimeColumnName = "StartTime";
     private const string ChannelListingsEndTimeColumnName = "EndTime";
@@ -43,6 +45,7 @@ public class SQLiteListingsData : IListingsData
         command.CommandText = $"CREATE TABLE {ChannelListingsTableName} " +
                               $"({ChannelListingsChannelIdColumnName} REFERENCES {ChannelLineupTableName}({ChannelLineupIdColumnName}), " +
                               $"{ChannelListingsTitleColumnName} TEXT, " +
+                              $"{ChannelListingsBlockColumnName} INTEGER, " +
                               $"{ChannelListingsDescriptionColumnName} TEXT, " +
                               $"{ChannelListingsStartTimeColumnName} TEXT, " +
                               $"{ChannelListingsEndTimeColumnName} TEXT)";
@@ -89,13 +92,13 @@ public class SQLiteListingsData : IListingsData
         await command.ExecuteNonQueryAsync();
     }
 
-    public async Task<IEnumerable<(string id, string channelNumber, string callSign)>> GetChannelLineup()
+    public async Task<IEnumerable<LineUpEntry>> GetChannelLineup()
     {
         await using var command = _sqLiteConnection.CreateCommand();
         command.CommandText = $"SELECT * FROM {ChannelLineupTableName}";
         await using var reader = command.ExecuteReader();
 
-        var results = new List<(string id, string channelNumber, string callSign)>();
+        var results = new List<LineUpEntry>();
 
         var idColumnIndex = reader.GetOrdinal(ChannelLineupIdColumnName);
         var callSignColumnIndex = reader.GetOrdinal(ChannelLineupCallSignColumnName);
@@ -104,43 +107,85 @@ public class SQLiteListingsData : IListingsData
         while (await reader.ReadAsync())
         {
             results.Add(
-                (reader.GetString(idColumnIndex),
-                reader.GetString(channelNumberColumnIndex),
-                reader.GetString(callSignColumnIndex)));
+                new LineUpEntry
+                {
+                    Id = reader.GetString(idColumnIndex),
+                    ChannelNumber = reader.GetString(channelNumberColumnIndex),
+                    CallSign = reader.GetString(callSignColumnIndex)
+                });
         }
 
         return results;
     }
 
-    public async Task AddChannelListing(string channelId, string title, string description,
-        DateTime startTime, DateTime endTime)
+    public async Task AddChannelListing(List<(string channelId, string title,
+        string description, DateTime startTime, DateTime endTime)> listings)
     {
-        // Speed this up by inserting multiple rows?
         await using var command = _sqLiteConnection.CreateCommand();
+        var valuesList = new List<string>();
+
+        for (var i = 0; i < listings.Count; i++)
+        {
+            valuesList.Add($"(@{ChannelListingsChannelIdColumnName}{i}, @{ChannelListingsTitleColumnName}{i}," +
+                           $"@{ChannelListingsBlockColumnName}{i}, @{ChannelListingsDescriptionColumnName}{i}, " +
+                           $"@{ChannelListingsStartTimeColumnName}{i}, @{ChannelListingsEndTimeColumnName}{i})");
+
+            var listing = listings.ElementAt(i);
+            
+            var block = Utilities.Time.CalculateBlockNumber(listing.startTime);
+            
+            command.Parameters.AddWithValue($"@{ChannelListingsChannelIdColumnName}{i}", listing.channelId);
+            command.Parameters.AddWithValue($"@{ChannelListingsTitleColumnName}{i}", listing.title);
+            command.Parameters.AddWithValue($"@{ChannelListingsBlockColumnName}{i}", block);
+            command.Parameters.AddWithValue($"@{ChannelListingsDescriptionColumnName}{i}", listing.description);
+            command.Parameters.AddWithValue($"@{ChannelListingsStartTimeColumnName}{i}", listing.startTime.ToString("o"));
+            command.Parameters.AddWithValue($"@{ChannelListingsEndTimeColumnName}{i}", listing.endTime.ToString("o"));
+        }
+        
         command.CommandText =
-            $"INSERT INTO {ChannelListingsTableName} ({ChannelListingsChannelIdColumnName}, {ChannelListingsTitleColumnName}," +
-            $" {ChannelListingsDescriptionColumnName}, {ChannelListingsStartTimeColumnName}, {ChannelListingsEndTimeColumnName}) " +
-            $"VALUES (@{ChannelListingsChannelIdColumnName}, @{ChannelListingsTitleColumnName}, @Description, @StartTime, @EndTime)";
-        command.Parameters.AddWithValue($"@{ChannelListingsChannelIdColumnName}", channelId);
-        command.Parameters.AddWithValue($"@{ChannelListingsTitleColumnName}", title);
-        command.Parameters.AddWithValue($"@{ChannelListingsDescriptionColumnName}", description);
-        command.Parameters.AddWithValue($"@{ChannelListingsStartTimeColumnName}", startTime.ToString("o"));
-        command.Parameters.AddWithValue($"@{ChannelListingsEndTimeColumnName}", endTime.ToString("o"));
+            $"INSERT INTO {ChannelListingsTableName} ({ChannelListingsChannelIdColumnName}, {ChannelListingsTitleColumnName}, " +
+            $"{ChannelListingsBlockColumnName}, " +
+            $"{ChannelListingsDescriptionColumnName}, {ChannelListingsStartTimeColumnName}, {ChannelListingsEndTimeColumnName}) " +
+            $"VALUES {string.Join(",", valuesList)}";
+
         await command.ExecuteNonQueryAsync();
     }
 
     public async Task<IEnumerable<Listing>> GetChannelListings(DateTime startTime, DateTime endTime)
     {
         await using var command = _sqLiteConnection.CreateCommand();
-        command.CommandText = $"SELECT * FROM {ChannelListingsTableName} " +
-                              $"WHERE {ChannelListingsStartTimeColumnName} >= '{startTime.ToUniversalTime():O}' AND " +
-                              $"{ChannelListingsEndTimeColumnName} <= '{endTime.ToUniversalTime():O}'";
+
+        var utcStartTime = startTime.ToUniversalTime().ToString("O");
+        var utcEndTime = endTime.ToUniversalTime().ToString("O");
+
+        command.CommandText = "SELECT * FROM ChannelListings WHERE " +
+                              // Start time is in the past, end time is in the block
+                              $"({ChannelListingsStartTimeColumnName} < '{utcStartTime}' AND " +
+                              $"{ChannelListingsEndTimeColumnName} > '{utcStartTime}' AND " +
+                              $"{ChannelListingsEndTimeColumnName} <= '{utcEndTime}') " +
+                              "OR " +
+                              // Start time is within the block, end time is within the block
+                              $"({ChannelListingsStartTimeColumnName} >= '{utcStartTime}' AND " +
+                              $"{ChannelListingsStartTimeColumnName} < '{utcEndTime}' AND " +
+                              $"{ChannelListingsEndTimeColumnName} > '{utcStartTime}' AND " +
+                              $"{ChannelListingsEndTimeColumnName} <= '{utcEndTime}') " +
+                              "OR " +
+                              // Start time is within the block, end time is after the block
+                              $"({ChannelListingsStartTimeColumnName} >= '{utcStartTime}' AND " +
+                              $"{ChannelListingsStartTimeColumnName} < '{utcEndTime}' AND " +
+                              $"{ChannelListingsEndTimeColumnName} > '{utcEndTime}') " +
+                              "OR " +
+                              // start time is in the past, end time is after end time
+                              $"({ChannelListingsStartTimeColumnName} < '{utcStartTime}' AND " +
+                              $"{ChannelListingsEndTimeColumnName} > '{utcEndTime}')";
+
         await using var reader = command.ExecuteReader();
 
         var results = new List<Listing>();
 
         var channelIdColumnIndex = reader.GetOrdinal(ChannelListingsChannelIdColumnName);
         var titleColumnIndex = reader.GetOrdinal(ChannelListingsTitleColumnName);
+        var blockColumnIndex = reader.GetOrdinal(ChannelListingsBlockColumnName);
         var descriptionColumnIndex = reader.GetOrdinal(ChannelListingsDescriptionColumnName);
         var startTimeColumnIndex = reader.GetOrdinal(ChannelListingsStartTimeColumnName);
         var endTimeColumnIndex = reader.GetOrdinal(ChannelListingsEndTimeColumnName);
@@ -151,9 +196,10 @@ public class SQLiteListingsData : IListingsData
             {
                 ChannelId = reader.GetString(channelIdColumnIndex),
                 Title = reader.GetString(titleColumnIndex),
+                Block = reader.GetInt32(blockColumnIndex),
                 Description = reader.GetString(descriptionColumnIndex),
-                StartTime = reader.GetString(startTimeColumnIndex),
-                EndTime = reader.GetString(endTimeColumnIndex)
+                StartTime = DateTime.Parse(reader.GetString(startTimeColumnIndex)),
+                EndTime = DateTime.Parse(reader.GetString(endTimeColumnIndex))
             });
         }
 

@@ -64,6 +64,9 @@
       <None Update="assets\ab-preview.ttf">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="assets\guide_double_arrow_right_2x_smooth.png">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
     <ItemGroup>
