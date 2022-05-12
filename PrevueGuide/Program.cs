@@ -110,7 +110,7 @@ Texture? columnTwoAndThree = null;
 Texture? columnOneTwoAndThree = null;
 
 var listingChannelTextureMap = new Dictionary<string, (Texture? Line1, Texture? Line2)>();
-var listingTextTextureMap = new Dictionary<string, List<(string text, Texture? Line1, Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>>();
+var listingTextTextureMap = new Dictionary<string, List<((int ColumnNumber, int ColumnOffset) ColumnInfo, Texture? Frame, Texture? Line1, Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>>();
 
 const int numberOfFrameTimesToCapture = 60;
 
@@ -151,32 +151,78 @@ void GenerateBigText()
         {
             var listings = channelListings.Where(cl => cl.ChannelId == channel.Id);
 
-            var listingList = new List<(string text, Texture? Line1, Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>();
+            var listingList = new List<((int ColumnNumber, int ColumnOffset) ColumnInfo, Texture? Frame, Texture? Line1,
+                Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>();
 
             if (listings.Any())
             {
                 foreach (var listing in listings)
                 {
-                    if (listing == null)
+                    var columnInfo = UI.CalculateColumnDetails(listing.Block,
+                        firstColumnWidth, secondColumnWidth);
+
+                    // var remainingDuration = listing.EndTime - nowBlock;
+
+                    var remainingDuration = (listing.StartTime > nowBlock)
+                        ? (listing.EndTime - listing.StartTime)
+                        : (listing.EndTime - nowBlock);
+
+                    Texture? frameTexture = null;
+
+                    if (remainingDuration.TotalMinutes > 60)
                     {
-                        foreach (var s in channelListings.Where(listing => listing.ChannelId == channel.Id))
+                        frameTexture = columnInfo.column switch
                         {
-                            Console.WriteLine($"{s.Title} [{s.StartTime} -> {s.EndTime}]");
-                        }
+                            1 => columnOneTwoAndThree,
+                            2 => columnTwoAndThree,
+                            3 => columnThree,
+                            _ => frameTexture
+                        };
+                    }
+                    else if (remainingDuration.TotalMinutes > 30)
+                    {
+                        frameTexture = columnInfo.column switch
+                        {
+                            1 => columnOneAndTwo,
+                            2 => columnTwoAndThree,
+                            3 => columnThree,
+                            _ => frameTexture
+                        };
+                    }
+                    else
+                    {
+                        frameTexture = columnInfo.column switch
+                        {
+                            1 => columnOneOrTwo,
+                            2 => columnOneOrTwo,
+                            3 => columnThree,
+                            _ => frameTexture
+                        };
                     }
 
-                    // var textLength = CalculateLineWidths(channelListings.FirstOrDefault()?.Title, firstColumnWidth,
-                    //    new Dictionary<int, int>());
+                    _ = SDL_QueryTexture(frameTexture.SdlTexture, out _, out _, out var frameWidth, out _);
 
-                    var firstLine = listing?.Title ?? " ";
+                    if (listing.StartTime < nowBlock)
+                        frameWidth -= (24 * scale); // 48
+
+                    if (listing.EndTime > nowBlockEnd)
+                        frameWidth -= (24 * scale); // 48
+
+                    var lines = CalculateLineWidths(listing.Title, frameWidth, new Dictionary<int, int>());
+
+                    var firstLine = lines?.ElementAtOrDefault(0) ?? " ";
+                    if (string.IsNullOrWhiteSpace(firstLine))
+                        firstLine = " ";
                     var line1 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, firstLine,
                         gridTextWhite, scale));
 
-                    var secondLine = " ";
+                    var secondLine = lines?.ElementAtOrDefault(1);
+                    if (string.IsNullOrWhiteSpace(secondLine))
+                        secondLine = " ";
                     var line2 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, secondLine,
                         gridTextWhite, scale));
 
-                    listingList.Add((listing?.Title, line1, line2, listing.Block, listing.StartTime, listing.EndTime));
+                    listingList.Add((columnInfo, frameTexture, line1, line2, listing.Block, listing.StartTime, listing.EndTime));
                 }
 
                 listingTextTextureMap.Add(channel.Id, listingList);
@@ -258,7 +304,7 @@ async Task ProcessXmlTvFile(string filename)
             }
         }
         Console.WriteLine($"Imported {numberOfPrograms} programs in {listingStopWatch.Elapsed}.");
-        
+
         Console.WriteLine("Guide data imported.");
 
         regenerateGridTextures = true;
@@ -516,8 +562,6 @@ IntPtr GenerateGridTexture()
             scrollingTest = 0;
         var testingOffset = (scrollingTest / 2);
 
-        var currentTimeBlock = Time.CalculateBlockNumber(DateTime.UtcNow, false);
-
         // Draw listings data.
         for (var i = 0; i < channelsToRender; i++)
         {
@@ -528,67 +572,15 @@ IntPtr GenerateGridTexture()
 
                 foreach (var listing in listingTextureMap)
                 {
+                    Texture? frameTexture = listing.Frame;
+
                     var textLine1 = listing.Line1;
                     var textLine2 = listing.Line2;
-
-                    var remainingDuration = listing.EndTime - nowBlock;
-
-                    int column;
-                    var columnOffset = 0;
-                    if (listing.Block <= currentTimeBlock)
-                    {
-                        column = 1;
-                    }
-                    else if (listing.Block - currentTimeBlock == 1)
-                    {
-                        column = 2;
-                        columnOffset += firstColumnWidth;
-                    }
-                    else if (listing.Block - currentTimeBlock == 2)
-                    {
-                        column = 3;
-                        columnOffset += firstColumnWidth + secondColumnWidth;
-                    }
-                    else
-                        break;
-
-                    Texture? frameTexture = null;
-
-                    if (remainingDuration.TotalMinutes >= 60)
-                    {
-                        frameTexture = column switch
-                        {
-                            1 => columnOneTwoAndThree,
-                            2 => columnTwoAndThree,
-                            3 => columnThree,
-                            _ => frameTexture
-                        };
-                    }
-                    else if (remainingDuration.TotalMinutes >= 30)
-                    {
-                        frameTexture = column switch
-                        {
-                            1 => columnOneAndTwo,
-                            2 => columnTwoAndThree,
-                            3 => columnThree,
-                            _ => frameTexture
-                        };
-                    }
-                    else
-                    {
-                        frameTexture = column switch
-                        {
-                            1 => columnOneOrTwo,
-                            2 => columnOneOrTwo,
-                            3 => columnThree,
-                            _ => frameTexture
-                        };
-                    }
 
                     _ = SDL_QueryTexture(frameTexture.SdlTexture, out _, out _, out var bfWidth, out var bfHeight);
                     var bfDstRect = new SDL_Rect
                     {
-                        h = bfHeight, w = bfWidth, x = (frameX + columnOffset) * scale,
+                        h = bfHeight, w = bfWidth, x = (frameX + listing.ColumnInfo.ColumnOffset) * scale,
                         y = ((frameY - testingOffset + (i * standardRowHeight)) * scale)
                     };
                     _ = SDL_RenderCopy(renderer, frameTexture.SdlTexture, IntPtr.Zero, ref bfDstRect);
@@ -602,7 +594,7 @@ IntPtr GenerateGridTexture()
                             out var gdalHeight);
                         var gdalDstRect = new SDL_Rect
                         {
-                            h = gdalHeight, w = gdalWidth, x = (frameX + 5 + columnOffset) * scale,
+                            h = gdalHeight, w = gdalWidth, x = (frameX + 5 + listing.ColumnInfo.ColumnOffset) * scale,
                             y = (frameY + 5 - testingOffset + (i * standardRowHeight)) * scale
                         };
                         _ = SDL_RenderCopy(renderer, guideDoubleArrowLeft.SdlTexture, IntPtr.Zero, ref gdalDstRect);
@@ -629,7 +621,7 @@ IntPtr GenerateGridTexture()
                     {
                         h = bftHeight,
                         w = bftWidth,
-                        x = (frameX + 5 + textLeftMargin + selectedFont.XOffset + columnOffset) * scale,
+                        x = (frameX + 5 + textLeftMargin + selectedFont.XOffset + listing.ColumnInfo.ColumnOffset) * scale,
                         y = (frameY + 5 - testingOffset + (i * standardRowHeight) + selectedFont.YOffset) * scale
                     };
                     _ = SDL_RenderCopy(renderer, textLine1.SdlTexture, IntPtr.Zero, ref bftDstRect);
@@ -637,7 +629,7 @@ IntPtr GenerateGridTexture()
                     _ = SDL_QueryTexture(textLine2.SdlTexture, out _, out _, out var bftWidth2, out var bftHeight2);
                     var bftDstRect2 = new SDL_Rect
                     {
-                        h = bftHeight2, w = bftWidth2, x = (frameX + 5 + textLeftMargin + selectedFont.XOffset + columnOffset) * scale,
+                        h = bftHeight2, w = bftWidth2, x = (frameX + 5 + textLeftMargin + selectedFont.XOffset + listing.ColumnInfo.ColumnOffset) * scale,
                         y = (frameY + 5 + 24 - testingOffset + (i * standardRowHeight) + selectedFont.YOffset) * scale
                     };
                     _ = SDL_RenderCopy(renderer, textLine2.SdlTexture, IntPtr.Zero, ref bftDstRect2);
@@ -747,7 +739,7 @@ IntPtr GenerateGridTexture()
             _ = SDL_RenderCopy(renderer, timeboxFrameThreeTime.SdlTexture, IntPtr.Zero, ref timeRect3);
         }
 
-        if (DateTime.Now.Hour is 00 or >= 10)
+        if ((DateTime.Now.Hour % 12) is 00 or >= 10)
             horizontalOffset -= 12;
 
         _ = SDL_QueryTexture(timeTexture.SdlTexture, out _, out _, out var timeWidth, out var timeHeight);
