@@ -67,10 +67,17 @@
       <None Update="assets\guide_double_arrow_right_2x_smooth.png">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="assets\guide_single_arrow_left_2x_smooth.png">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="assets\guide_single_arrow_right_2x_smooth.png">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\PrevueGuide.Core.Data.SQLite\PrevueGuide.Core.Data.SQLite.csproj" />
+      <ProjectReference Include="..\PrevueGuide.Core.SDL\PrevueGuide.Core.SDL.csproj" />
       <ProjectReference Include="..\PrevueGuide.Core\PrevueGuide.Core.csproj" />
       <ProjectReference Include="..\XmlTv\XmlTv.csproj" />
     </ItemGroup>

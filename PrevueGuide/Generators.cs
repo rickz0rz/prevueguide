@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using PrevueGuide.SDLWrappers;
+using PrevueGuide.Core.SDL;
+using PrevueGuide.Core.SDL.Wrappers;
 using static SDL2.SDL;
-using static SDL2.SDL_image;
 using static SDL2.SDL_ttf;
 
 namespace PrevueGuide;
@@ -9,24 +9,6 @@ namespace PrevueGuide;
 public static class Generators
 {
     private static readonly SDL_Color CommonBlack = new() { a = 255, r = 17, g = 17, b = 17 };
-
-    public static IntPtr LoadImageToTexture(IntPtr renderer, string filename)
-    {
-        // If I decide to pack everything into a zip or something...
-        // var src = SDL_RWFromMem(...)
-        // SDL_image.IMG_Load_RW(src, 1)
-
-        using var surface = new Surface(IMG_Load(filename));
-
-        if (surface.SdlSurface == IntPtr.Zero)
-        {
-            Console.WriteLine($"There was an issue opening image \"{filename}\": {SDL_GetError()}");
-        }
-
-        var texture = SDL_CreateTextureFromSurface(renderer, surface.SdlSurface);
-        _ = SDL_SetTextureBlendMode(texture, SDL_BlendMode.SDL_BLENDMODE_BLEND);
-        return texture;
-    }
 
     public enum ArrowType
     {
@@ -127,18 +109,9 @@ public static class Generators
         return resultTexture;
     }
 
-    public static IntPtr GenerateFrame(IntPtr renderer, int width, int height,
-        SDL_Color backgroundColor, int scale = 1)
+    public static IntPtr GenerateFrame(TextureManager textureManager, IntPtr renderer, int width,
+        int height, SDL_Color backgroundColor, int scale = 1)
     {
-        using var upperLeft = new Texture(renderer, $"assets/frame_upper_left_2x_smooth.png");
-        using var upperRight = new Texture(renderer, $"assets/frame_upper_right_2x_smooth.png");
-        using var lowerLeft = new Texture(renderer, $"assets/frame_lower_left_2x_smooth.png");
-        using var lowerRight = new Texture(renderer, $"assets/frame_lower_right_2x_smooth.png");
-        using var left = new Texture(renderer, $"assets/frame_left_2x.png");
-        using var right = new Texture(renderer, $"assets/frame_right_2x.png");
-        using var upper = new Texture(renderer, $"assets/frame_upper_2x.png");
-        using var lower = new Texture(renderer, $"assets/frame_lower_2x.png");
-
         var resultTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
             (int)SDL_TextureAccess.SDL_TEXTUREACCESS_TARGET, width * scale,
             height * scale);
@@ -151,44 +124,80 @@ public static class Generators
                 backgroundColor.a);
             _ = SDL_RenderClear(renderer);
 
-            _ = SDL_QueryTexture(left.SdlTexture, out _, out _, out var lw, out _);
-            var lDstRect = new SDL_Rect { h = (height * scale), w = lw, x = 0, y = 0 };
-            _ = SDL_RenderCopy(renderer, left.SdlTexture, IntPtr.Zero, ref lDstRect);
-
-            _ = SDL_QueryTexture(right.SdlTexture, out _, out _, out var rw, out _);
-            var rDstRect = new SDL_Rect { h = (height * scale), w = rw, x = ((width * scale) - rw), y = 0 };
-            _ = SDL_RenderCopy(renderer, right.SdlTexture, IntPtr.Zero, ref rDstRect);
-
-            _ = SDL_QueryTexture(upper.SdlTexture, out _, out _, out _, out var upperHeight);
-            var upperDstRect = new SDL_Rect { h = upperHeight, w = (width * scale), x = 0, y = 0 };
-            _ = SDL_RenderCopy(renderer, upper.SdlTexture, IntPtr.Zero, ref upperDstRect);
-
-            _ = SDL_QueryTexture(lower.SdlTexture, out _, out _, out _, out var lowerHeight);
-            var lowerDstRect = new SDL_Rect
-                { h = lowerHeight, w = (width * scale), x = 0, y = (height * scale) - lowerHeight };
-            _ = SDL_RenderCopy(renderer, lower.SdlTexture, IntPtr.Zero, ref lowerDstRect);
-
-            _ = SDL_QueryTexture(upperLeft.SdlTexture, out _, out _, out var upperLeftWidth, out var upperLeftHeight);
-            var upperLeftDstRect = new SDL_Rect { h = upperLeftHeight, w = upperLeftWidth, x = 0, y = 0 };
-            _ = SDL_RenderCopy(renderer, upperLeft.SdlTexture, IntPtr.Zero, ref upperLeftDstRect);
-
-            _ = SDL_QueryTexture(upperRight.SdlTexture, out _, out _, out var upperRightWidth, out var upperRightHeight);
-            var upperRightDstRect = new SDL_Rect
-                { h = upperRightHeight, w = upperRightWidth, x = width * scale - upperRightWidth, y = 0 };
-            _ = SDL_RenderCopy(renderer, upperRight.SdlTexture, IntPtr.Zero, ref upperRightDstRect);
-
-            _ = SDL_QueryTexture(lowerLeft.SdlTexture, out _, out _, out var lowerLeftWidth, out var lowerLeftHeight);
-            var lowerLeftDstRect = new SDL_Rect
-                { h = lowerLeftHeight, w = lowerLeftWidth, x = 0, y = height * scale - lowerLeftHeight };
-            _ = SDL_RenderCopy(renderer, lowerLeft.SdlTexture, IntPtr.Zero, ref lowerLeftDstRect);
-
-            _ = SDL_QueryTexture(lowerRight.SdlTexture, out _, out _, out var lowerRightWidth, out var lowerRightHeight);
-            var lowerRightDstRect = new SDL_Rect
+            var left = textureManager[Constants.GuideFrameLeft];
+            if (left != null)
             {
-                h = upperRightHeight, w = upperRightWidth, x = width * scale - lowerRightWidth,
-                y = (height * scale) - lowerRightHeight
-            };
-            _ = SDL_RenderCopy(renderer, lowerRight.SdlTexture, IntPtr.Zero, ref lowerRightDstRect);
+                _ = SDL_QueryTexture(left.SdlTexture, out _, out _, out var lw, out _);
+                var lDstRect = new SDL_Rect { h = (height * scale), w = lw, x = 0, y = 0 };
+                _ = SDL_RenderCopy(renderer, left.SdlTexture, IntPtr.Zero, ref lDstRect);
+            }
+
+            var right = textureManager[Constants.GuideFrameRight];
+            if (right != null)
+            {
+                _ = SDL_QueryTexture(right.SdlTexture, out _, out _, out var rw, out _);
+                var rDstRect = new SDL_Rect { h = (height * scale), w = rw, x = ((width * scale) - rw), y = 0 };
+                _ = SDL_RenderCopy(renderer, right.SdlTexture, IntPtr.Zero, ref rDstRect);
+            }
+
+            var upper = textureManager[Constants.GuideFrameUpper];
+            if (upper != null)
+            {
+                _ = SDL_QueryTexture(upper.SdlTexture, out _, out _, out _, out var upperHeight);
+                var upperDstRect = new SDL_Rect { h = upperHeight, w = (width * scale), x = 0, y = 0 };
+                _ = SDL_RenderCopy(renderer, upper.SdlTexture, IntPtr.Zero, ref upperDstRect);
+            }
+
+            var lower = textureManager[Constants.GuideFrameLower];
+            if (lower != null)
+            {
+                _ = SDL_QueryTexture(lower.SdlTexture, out _, out _, out _, out var lowerHeight);
+                var lowerDstRect = new SDL_Rect
+                    { h = lowerHeight, w = (width * scale), x = 0, y = (height * scale) - lowerHeight };
+                _ = SDL_RenderCopy(renderer, lower.SdlTexture, IntPtr.Zero, ref lowerDstRect);
+            }
+
+            var upperLeft = textureManager[Constants.GuideFrameUpperLeft];
+            if (upperLeft != null)
+            {
+                _ = SDL_QueryTexture(upperLeft.SdlTexture, out _, out _, out var upperLeftWidth,
+                    out var upperLeftHeight);
+                var upperLeftDstRect = new SDL_Rect { h = upperLeftHeight, w = upperLeftWidth, x = 0, y = 0 };
+                _ = SDL_RenderCopy(renderer, upperLeft.SdlTexture, IntPtr.Zero, ref upperLeftDstRect);
+            }
+
+            var upperRight = textureManager[Constants.GuideFrameUpperRight];
+            if (upperRight != null)
+            {
+                _ = SDL_QueryTexture(upperRight.SdlTexture, out _, out _, out var upperRightWidth,
+                    out var upperRightHeight);
+                var upperRightDstRect = new SDL_Rect
+                    { h = upperRightHeight, w = upperRightWidth, x = width * scale - upperRightWidth, y = 0 };
+                _ = SDL_RenderCopy(renderer, upperRight.SdlTexture, IntPtr.Zero, ref upperRightDstRect);
+            }
+
+            var lowerLeft = textureManager[Constants.GuideFrameLowerLeft];
+            if (lowerLeft != null)
+            {
+                _ = SDL_QueryTexture(lowerLeft.SdlTexture, out _, out _, out var lowerLeftWidth,
+                    out var lowerLeftHeight);
+                var lowerLeftDstRect = new SDL_Rect
+                    { h = lowerLeftHeight, w = lowerLeftWidth, x = 0, y = height * scale - lowerLeftHeight };
+                _ = SDL_RenderCopy(renderer, lowerLeft.SdlTexture, IntPtr.Zero, ref lowerLeftDstRect);
+            }
+
+            var lowerRight = textureManager[Constants.GuideFrameLowerRight];
+            if (lowerRight != null)
+            {
+                _ = SDL_QueryTexture(lowerRight.SdlTexture, out _, out _, out var lowerRightWidth,
+                    out var lowerRightHeight);
+                var lowerRightDstRect = new SDL_Rect
+                {
+                    h = lowerRightHeight, w = lowerRightWidth, x = width * scale - lowerRightWidth,
+                    y = (height * scale) - lowerRightHeight
+                };
+                _ = SDL_RenderCopy(renderer, lowerRight.SdlTexture, IntPtr.Zero, ref lowerRightDstRect);
+            }
         }
 
         return resultTexture;

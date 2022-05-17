@@ -2,6 +2,22 @@ namespace PrevueGuide.Core.Utilities;
 
 public static class Time
 {
+    public static DateTime ClampToNextHalfHourIfTenMinutesAway(DateTime dateTime)
+    {
+        // Flatten the datetime: remove any milli/micro seconds
+        var newDateTime = dateTime;
+        newDateTime = newDateTime.AddTicks(0 - (newDateTime.Ticks % 100000000));
+        newDateTime = newDateTime.AddSeconds(0 - newDateTime.Second);
+        newDateTime = newDateTime.AddMinutes(0 - (newDateTime.Minute % 30));
+
+        if (dateTime.Minute % 30 >= 20)
+        {
+            newDateTime = newDateTime.AddMinutes(30);
+        }
+
+        return newDateTime;
+    }
+
     public static DateTime ClampToPreviousHalfHour(DateTime dateTime)
     {
         // Given a time, clamp it to it's last previous "on the 30 or 00" minutes
@@ -9,11 +25,9 @@ public static class Time
         //
         // i.e. 4:35:04.0093583 -> 4:30:00.0000000
 
+        // Flatten the datetime: remove any milli/micro seconds
         var newDateTime = dateTime;
-
-        // Remove any milli/micro seconds
         newDateTime = newDateTime.AddTicks(0 - (newDateTime.Ticks % 100000000));
-
         newDateTime = newDateTime.AddSeconds(0 - newDateTime.Second);
 
         newDateTime = newDateTime.Minute >= 30

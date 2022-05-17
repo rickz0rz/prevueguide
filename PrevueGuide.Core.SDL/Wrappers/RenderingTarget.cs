@@ -1,6 +1,4 @@
-using SDL2;
-
-namespace PrevueGuide.SDLWrappers;
+namespace PrevueGuide.Core.SDL.Wrappers;
 
 public class RenderingTarget : IDisposable
 {
@@ -10,12 +8,12 @@ public class RenderingTarget : IDisposable
     public RenderingTarget(IntPtr renderer, IntPtr texture)
     {
         _renderer = renderer;
-        _previousRenderTarget = SDL.SDL_GetRenderTarget(_renderer);
-        _ = SDL.SDL_SetRenderTarget(_renderer, texture);
+        _previousRenderTarget = SDL2.SDL.SDL_GetRenderTarget(_renderer);
+        _ = SDL2.SDL.SDL_SetRenderTarget(_renderer, texture);
     }
 
     public void Dispose()
     {
-        _ = SDL.SDL_SetRenderTarget(_renderer, _previousRenderTarget);
+        _ = SDL2.SDL.SDL_SetRenderTarget(_renderer, _previousRenderTarget);
     }
 }

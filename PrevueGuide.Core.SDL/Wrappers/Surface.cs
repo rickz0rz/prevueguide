@@ -1,4 +1,4 @@
-namespace PrevueGuide.SDLWrappers;
+namespace PrevueGuide.Core.SDL.Wrappers;
 
 public class Surface : IDisposable
 {
