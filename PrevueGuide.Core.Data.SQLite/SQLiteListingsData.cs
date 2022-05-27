@@ -38,7 +38,7 @@ public class SQLiteListingsData : IListingsData
                               $"PRIMARY KEY ({ChannelLineupIdColumnName}))";
         _ = command.ExecuteNonQuery();
     }
-    
+
     private void GenerateChannelListingsTable()
     {
         using var command = _sqLiteConnection.CreateCommand();
@@ -51,7 +51,7 @@ public class SQLiteListingsData : IListingsData
                               $"{ChannelListingsEndTimeColumnName} TEXT)";
         _ = command.ExecuteNonQuery();
     }
-    
+
     public SQLiteListingsData(string filename)
     {
         // Make sure our tables exist.
@@ -64,13 +64,13 @@ public class SQLiteListingsData : IListingsData
             Console.WriteLine($"Warning: Table \"{ChannelLineupTableName}\" doesn't exist, creating.");
             GenerateChannelLineUpTable();
         }
-        
+
         if (!VerifyTableExists(ChannelListingsTableName))
         {
             Console.WriteLine($"Warning: Table \"{ChannelListingsTableName}\" doesn't exist, creating.");
             GenerateChannelListingsTable();
         }
-        
+
         // Generate indexes if missing?
     }
 
@@ -84,7 +84,7 @@ public class SQLiteListingsData : IListingsData
         // Speed this up by inserting multiple rows?
         await using var command = _sqLiteConnection.CreateCommand();
         command.CommandText =
-            $"INSERT INTO {ChannelLineupTableName} ({ChannelLineupIdColumnName}, {ChannelLineupCallSignColumnName}, {ChannelLineupChannelNumberColumnName})" +
+            $"INSERT OR IGNORE INTO {ChannelLineupTableName} ({ChannelLineupIdColumnName}, {ChannelLineupCallSignColumnName}, {ChannelLineupChannelNumberColumnName})" +
             $" VALUES (@{ChannelLineupIdColumnName}, @{ChannelLineupCallSignColumnName}, @{ChannelLineupChannelNumberColumnName})";
         command.Parameters.AddWithValue($"@{ChannelLineupIdColumnName}", id);
         command.Parameters.AddWithValue($"@{ChannelLineupCallSignColumnName}", callSign);
@@ -103,7 +103,7 @@ public class SQLiteListingsData : IListingsData
         var idColumnIndex = reader.GetOrdinal(ChannelLineupIdColumnName);
         var callSignColumnIndex = reader.GetOrdinal(ChannelLineupCallSignColumnName);
         var channelNumberColumnIndex = reader.GetOrdinal(ChannelLineupChannelNumberColumnName);
-        
+
         while (await reader.ReadAsync())
         {
             results.Add(
@@ -131,9 +131,9 @@ public class SQLiteListingsData : IListingsData
                            $"@{ChannelListingsStartTimeColumnName}{i}, @{ChannelListingsEndTimeColumnName}{i})");
 
             var listing = listings.ElementAt(i);
-            
+
             var block = Utilities.Time.CalculateBlockNumber(listing.startTime);
-            
+
             command.Parameters.AddWithValue($"@{ChannelListingsChannelIdColumnName}{i}", listing.channelId);
             command.Parameters.AddWithValue($"@{ChannelListingsTitleColumnName}{i}", listing.title);
             command.Parameters.AddWithValue($"@{ChannelListingsBlockColumnName}{i}", block);
@@ -141,9 +141,9 @@ public class SQLiteListingsData : IListingsData
             command.Parameters.AddWithValue($"@{ChannelListingsStartTimeColumnName}{i}", listing.startTime.ToString("o"));
             command.Parameters.AddWithValue($"@{ChannelListingsEndTimeColumnName}{i}", listing.endTime.ToString("o"));
         }
-        
+
         command.CommandText =
-            $"INSERT INTO {ChannelListingsTableName} ({ChannelListingsChannelIdColumnName}, {ChannelListingsTitleColumnName}, " +
+            $"INSERT OR IGNORE INTO {ChannelListingsTableName} ({ChannelListingsChannelIdColumnName}, {ChannelListingsTitleColumnName}, " +
             $"{ChannelListingsBlockColumnName}, " +
             $"{ChannelListingsDescriptionColumnName}, {ChannelListingsStartTimeColumnName}, {ChannelListingsEndTimeColumnName}) " +
             $"VALUES {string.Join(",", valuesList)}";

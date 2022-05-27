@@ -1,0 +1,28 @@
+{
+  "fonts": {
+    "PrevueGrid": {
+      "Filename": "assets/PrevueGrid.ttf",
+      "PointSize": 25,
+      "XOffset": 0,
+      "YOffset": 0
+    },
+    "ab-preview": {
+      "Filename": "assets/ab-preview.ttf",
+      "PointSize": 23,
+      "XOffset": -1,
+      "YOffset": -7
+    },
+    "DINBold": {
+      "Filename": "/Users/rj/Library/Fonts/DINBd___.ttf",
+      "PointSize": 25,
+      "XOffset": -1,
+      "YOffset": -7
+    },
+    "ComicNeueBold": {
+      "Filename": "/Users/rj/Library/Fonts/ComicNeue_Bold.otf",
+      "PointSize": 25,
+      "XOffset": 0,
+      "YOffset": 2
+    }
+  }
+}
