@@ -3,6 +3,8 @@
 ## What is it?
 This is a simulator for the classic Amiga based Prevue Guide.
 
+![Prevue Guide screenshot](/.readme/guide.png)
+
 ## How do I run it?
 This uses .NET 6 and SDL to run, so make sure you have .NET 6,  SDL, SDL_ttf, and SDL_image installed. For Mac users, `brew install --cask dotnet-sdk; brew install sdl2 sdl2_image sdl2_ttf` should 
 be sufficient with homebrew. Once those are installed, `cd` into the main directory and run `dotnet run --project PrevueGuide/PrevueGuide.csproj`. You should be treated to a blue grid with nothing 
