@@ -3,10 +3,10 @@ namespace PrevueGuide;
 public static class Constants
 {
     // Guide Arrows
-    public const string GuideSingleArrowLeft = nameof(GuideSingleArrowLeft);
-    public const string GuideSingleArrowRight = nameof(GuideSingleArrowRight);
-    public const string GuideDoubleArrowLeft = nameof(GuideDoubleArrowLeft);
-    public const string GuideDoubleArrowRight = nameof(GuideDoubleArrowRight);
+    public const string GuideSingleArrowLeft = "guide_single_arrow_left";
+    public const string GuideSingleArrowRight = "guide_single_arrow_right";
+    public const string GuideDoubleArrowLeft = "guide_double_arrow_left";
+    public const string GuideDoubleArrowRight = "guide_double_arrow_right";
 
     // Guide Frame Components
     public const string GuideFrameUpperLeft = nameof(GuideFrameUpperLeft);

@@ -24,6 +24,21 @@ using var loggerFactory = LoggerFactory.Create(builder =>
         .AddConsole();
 });
 
+// RANDOM NOTES:
+// Create a render queue
+// - List of objects along with pointer to current "top" object
+// - Objects will be timebar, logo, advertisement, channel list, etc.
+// - Channel list will be a special object with its own "current channel" pointer?
+// - When an object would be rendered out of scope,
+// Render queue will exist of objects (time bar, logo, advertisement, channel, etc.)
+// Will also have a pointer as to what the current most visible object is and its position, other objects
+//     will be rendered so long as the previous object doesn't cross over the visibility boundary
+// Object rendering happens at the beginning of each frame (on demand), if the object to render to a texture isn't
+//     already rendered and cached.
+// If an object is no longer going to be visible (passes over the top threashold of the frame) it's evicted
+//     from the cache.
+// Re-generate the queue whenever the timebox changes.
+
 var logger = loggerFactory.CreateLogger<Program>();
 
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
@@ -50,8 +65,8 @@ const int standardRowHeight = 56;
 const int standardColumnWidth = 172;
 const int firstColumnWidth = standardColumnWidth;
 const int secondColumnWidth = standardColumnWidth;
-const int thirdColumnWidth = standardColumnWidth + 36; // 208;
-
+const int thirdColumnWidth = standardColumnWidth + 36; // For rendering the frame, it's this but when generating
+                                                       // contents in the 3rd column, use the standard column width.
 const int singleArrowWidth = 16;
 const int doubleArrowWidth = 24;
 
@@ -71,6 +86,7 @@ DateTime now;
 DateTime nowBlock;
 DateTime nowBlockEnd;
 
+now = DateTime.Now;
 SetBlockTimes();
 
 var data = new PrevueGuide.Core.Data.SQLite.SQLiteListingsData(databaseFilename);
@@ -188,21 +204,10 @@ CleanUp();
 
 void SetBlockTimes()
 {
-    // TODO: If the time is within the next 10 minutes for some reason
-    // lots of blocks are missing data...? Does this have to do with a mis-match
-    // between the time used for listings fetching vs. what is used for the time bar?
-
-    now = DateTime.Now;
-    //logger.LogInformation("Setting now to {now}", now);
-
-    // temporarily changing this. this for some reason leaves
-    // gaps of guide data... am i using datetime.now elsewhere?
-    // nowBlock = Time.ClampToNextHalfHourIfTenMinutesAway(now);
+    logger.LogInformation($@"[Clock] Setting now to {now}");
     nowBlock = Time.ClampToPreviousHalfHour(now);
-
-    //logger.LogInformation("NowBlock calculated to {nowBlock}", nowBlock);
     nowBlockEnd = nowBlock.AddMinutes(90);
-    //logger.LogInformation("NowBlockEnd calculated to {nowBlock}", nowBlockEnd);
+    logger.LogInformation($@"[Clock] Time blocks set to {nowBlock} to {nowBlockEnd}");
 }
 
 async Task ReloadGuideData()
@@ -211,7 +216,7 @@ async Task ReloadGuideData()
     var channels = await data.GetChannelLineup();
     channelLineUp.Clear();
     channelLineUp.AddRange(channels);
-    logger.LogInformation("Channel line-up loaded. {channelLineUpCount} channels found in " +
+    logger.LogInformation("[Guide] Channel line-up loaded. {channelLineUpCount} channels found in " +
                           "{loadTimeMilliseconds} ms.",
         channelLineUp.Count,
         channelLineUpStopwatch.ElapsedMilliseconds);
@@ -223,14 +228,15 @@ async Task ReloadGuideData()
     var listings = await data.GetChannelListings(nowBlock, nowBlockEnd);
     channelListings.Clear();
     channelListings.AddRange(listings);
-    Console.WriteLine($"Channel listings loaded. {channelListings.Count()} listings found in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
+
+    logger.LogInformation($@"[Guide] Channel listings loaded. {channelListings.Count()} listings found in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
 
     regenerateGridTextures = true;
 }
 
 void GenerateListingTextures()
 {
-    logger.LogInformation("Removing old listing textures");
+    logger.LogInformation("[Textures] Removing old listing textures");
     foreach (var k in listingTextTextureMap.Keys)
     {
         listingChannelTextureMap[k].Line1?.Dispose();
@@ -238,7 +244,7 @@ void GenerateListingTextures()
         listingChannelTextureMap.Remove(k);
     }
 
-    logger.LogInformation("Generating new listing textures");
+    logger.LogInformation("[Textures] Generating new listing textures");
     for (var i = 0; i < channelsToRender + 5; i++)
     {
         var channel = channelLineUp.ElementAtOrDefault(i);
@@ -314,7 +320,7 @@ void GenerateListingTextures()
 
                 var lines = CalculateLineWidths(listing.Title, frameWidth, new Dictionary<int, int>());
 
-                var firstLine = lines?.ElementAtOrDefault(0) ?? " ";
+                var firstLine = lines.ElementAtOrDefault(0) ?? " ";
                 if (string.IsNullOrWhiteSpace(firstLine))
                     firstLine = " ";
                 var line1 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, firstLine,
@@ -349,7 +355,7 @@ async Task ProcessXmlTvFile(string filename)
 {
     try
     {
-        Console.WriteLine($"Received file: {filename}");
+        logger.LogInformation($"[Processor] Received file {filename}");
 
         var xmlReaderSettings = new XmlReaderSettings
         {
@@ -361,7 +367,7 @@ async Task ProcessXmlTvFile(string filename)
         using var xmlReader = XmlReader.Create(fileStream, xmlReaderSettings);
         var tv = (Tv)new XmlSerializer(typeof(Tv)).Deserialize(xmlReader)!;
 
-        Console.WriteLine("Importing guide data...");
+        logger.LogInformation("[Processor] Importing guide data...");
 
         var channelStopWatch = Stopwatch.StartNew();
         var numberOfChannels = 0;
@@ -373,7 +379,7 @@ async Task ProcessXmlTvFile(string filename)
                 numberOfChannels++;
             }
         }
-        Console.WriteLine($"Imported {numberOfChannels} channels in {channelStopWatch.Elapsed}.");
+        logger.LogInformation($"[Processor] Imported {numberOfChannels} channels in {channelStopWatch.Elapsed}.");
 
         var listingStopWatch = Stopwatch.StartNew();
         var numberOfPrograms = 0;
@@ -408,16 +414,16 @@ async Task ProcessXmlTvFile(string filename)
                 await data.AddChannelListing(list);
             }
         }
-        Console.WriteLine($"Imported {numberOfPrograms} programs in {listingStopWatch.Elapsed}.");
 
-        Console.WriteLine("Guide data imported.");
+        logger.LogInformation($"[Processor] Imported {numberOfPrograms} programs in {listingStopWatch.Elapsed}.");
+        logger.LogInformation("[Processor] Guide data imported.");
 
         reloadGuideData = true;
-        Console.WriteLine("Prepared for regeneration.");
+        logger.LogInformation("[Processor] Prepared for regeneration.");
     }
     catch (Exception e)
     {
-        Console.WriteLine($"Encountered exception in rendering of XMLTV: {e.Message} @ {e.StackTrace}");
+        logger.LogError("[Processor] Encountered exception in rendering of XMLTV: {e.Message} @ {e.StackTrace}");
     }
 }
 
@@ -507,7 +513,7 @@ void Setup()
 {
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
-        Console.WriteLine($"There was an issue initializing SDL. {SDL_GetError()}");
+        throw new Exception($"There was an issue initializing SDL. {SDL_GetError()}");
     }
 
     _ = TTF_Init();
@@ -520,16 +526,15 @@ void Setup()
         windowWidth,
         windowHeight,
         SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI);
-        // SDL_WindowFlags.SDL_WINDOW_SHOWN);
 
     SDL_GL_GetDrawableSize(window, out var windowSizeW, out var windowSizeH);
-    Console.WriteLine($"Drawable Size: {windowSizeW} x {windowSizeH}");
+    logger.LogInformation($@"[Window] Drawable Size: {windowSizeW} x {windowSizeH}");
     scale = windowSizeH / windowHeight;
-    Console.WriteLine($"Scale: {scale}x");
+    logger.LogInformation($@"[Window] Scale: {scale}x");
 
     if (window == IntPtr.Zero)
     {
-        Console.WriteLine($"There was an issue creating the window. {SDL_GetError()}");
+        throw new Exception($"There was an issue creating the window. {SDL_GetError()}");
     }
 
     renderer = SDL_CreateRenderer(
@@ -539,7 +544,7 @@ void Setup()
 
     if (renderer == IntPtr.Zero)
     {
-        Console.WriteLine($"There was an issue creating the renderer. {SDL_GetError()}");
+        throw new Exception($"There was an issue creating the renderer. {SDL_GetError()}");
     }
 
     _ = SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode.SDL_BLENDMODE_BLEND);
@@ -549,7 +554,9 @@ void Setup()
 
     var smoothing = scale == 2 ? "_smooth" : string.Empty;
     var size = $"{scale}x{smoothing}";
-    Console.WriteLine($"Using size: {size}");
+
+    // Load all the assets into the texture manager.
+    logger.LogInformation($@"[Assets] Using size: {size}");
     staticTextureManager[Constants.GuideSingleArrowLeft] = new Texture(renderer, $"assets/images/guide_single_arrow_left_{size}.png");
     staticTextureManager[Constants.GuideSingleArrowRight] = new Texture(renderer, $"assets/images/guide_single_arrow_right_{size}.png");
     staticTextureManager[Constants.GuideDoubleArrowLeft] = new Texture(renderer, $"assets/images/guide_double_arrow_left_{size}.png");
@@ -598,11 +605,10 @@ void PollEvents()
             running = false;
         else if (sdlEvent.type == SDL_EventType.SDL_WINDOWEVENT)
         {
-            // Console.WriteLine($"SDL Window Event: {sdlEvent.window.windowEvent}");
             // Interested in:
             // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_LOST
             // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_GAINED
-            // Would be nice to pause the renderer so it doens't use 100% CPU when the window isn't focused
+            // Would be nice to pause the renderer so it doesn't use 100% CPU when the window isn't focused
         }
         else if (sdlEvent.type == SDL_EventType.SDL_DROPFILE)
         {
@@ -641,10 +647,13 @@ void PollEvents()
 // - Don't try to render everything in the channel list. Only render what's going to be visible.
 IntPtr GenerateGridTexture()
 {
+    now = DateTime.Now;
+
     // Only update the time if the second has changed.
-    SetBlockTimes();
     if (currentTimeToDisplay.Second != now.Second)
     {
+        SetBlockTimes();
+
         currentTimeToDisplay = now;
 
         timeTexture?.Dispose();
