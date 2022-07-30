@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.Extensions.Logging;
@@ -93,62 +95,10 @@ var data = new PrevueGuide.Core.Data.SQLite.SQLiteListingsData(databaseFilename)
 var channelLineUp = new List<LineUpEntry>();
 var channelListings = new List<Listing>();
 
-const string FontNamePrevueGrid = nameof(FontNamePrevueGrid);
-const string FontNameABPreview = nameof(FontNameABPreview);
-const string FontNameDINBold = nameof(FontNameDINBold);
-const string FontNameComicNeueBold = nameof(FontNameComicNeueBold);
-const string FontNameHelvetica = nameof(FontNameHelvetica);
-
-var fontConfigurationMap = new Dictionary<string, FontConfiguration>
-{
-    {
-        FontNamePrevueGrid, new FontConfiguration
-        {
-            Filename = "assets/PrevueGrid.ttf",
-            PointSize = 25,
-            XOffset = 0,
-            YOffset = 0
-        }
-    },
-    {
-        FontNameHelvetica, new FontConfiguration
-        {
-            Filename = "/System/Library/Fonts/Helvetica.ttc",
-            PointSize = 23,
-            XOffset = 0,
-            YOffset = 0
-        }
-    },
-    {
-        FontNameABPreview, new FontConfiguration
-        {
-            Filename = "assets/ab-preview.ttf",
-            PointSize = 23,
-            XOffset = -1, // -4,
-            YOffset = -7 // -11
-        }
-    },
-    {
-        FontNameDINBold, new FontConfiguration // Hollywood
-        {
-            Filename = "/Users/rj/Library/Fonts/DINBd___.ttf",
-            PointSize = 25,
-            XOffset = -1,
-            YOffset = -7
-        }
-    },
-    {
-        FontNameComicNeueBold, new FontConfiguration
-        {
-            Filename = "/Users/rj/Library/Fonts/ComicNeue_Bold.otf",
-            PointSize = 25,
-            XOffset = 0,
-            YOffset = 2
-        }
-    }
-};
-
-var selectedFont = fontConfigurationMap[FontNamePrevueGrid];
+var fontConfigurationData = File.ReadAllText("assets/fonts.json");
+var fontConfigurationMap =
+    JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(fontConfigurationData);
+var selectedFont = fontConfigurationMap["PrevueGrid"];
 
 IntPtr window;
 IntPtr renderer;
