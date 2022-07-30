@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.Extensions.Logging;
@@ -95,17 +94,16 @@ var data = new PrevueGuide.Core.Data.SQLite.SQLiteListingsData(databaseFilename)
 var channelLineUp = new List<LineUpEntry>();
 var channelListings = new List<Listing>();
 
-var fontConfigurationData = File.ReadAllText("assets/fonts.json");
 var fontConfigurationMap =
-    JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(fontConfigurationData);
+    JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(File.ReadAllText("assets/fonts.json"));
 var selectedFont = fontConfigurationMap["PrevueGrid"];
 
 IntPtr window;
 IntPtr renderer;
 IntPtr openedTtfFont;
 
-var staticTextureManager = new TextureManager();
 FontSizeManager fontSizeManager;
+TextureManager staticTextureManager;
 
 Texture? timeTexture = null;
 Texture? channelFrameTexture = null;
@@ -506,26 +504,25 @@ void Setup()
     var size = $"{scale}x{smoothing}";
 
     // Load all the assets into the texture manager.
-    logger.LogInformation($@"[Assets] Using size: {size}");
-    staticTextureManager[Constants.GuideSingleArrowLeft] = new Texture(renderer, $"assets/images/guide_single_arrow_left_{size}.png");
-    staticTextureManager[Constants.GuideSingleArrowRight] = new Texture(renderer, $"assets/images/guide_single_arrow_right_{size}.png");
-    staticTextureManager[Constants.GuideDoubleArrowLeft] = new Texture(renderer, $"assets/images/guide_double_arrow_left_{size}.png");
-    staticTextureManager[Constants.GuideDoubleArrowRight] = new Texture(renderer, $"assets/images/guide_double_arrow_right_{size}.png");
-    staticTextureManager[Constants.GuideFrameUpperLeft] = new Texture(renderer, $"assets/images/frame_upper_left_{size}.png");
-    staticTextureManager[Constants.GuideFrameUpperRight] = new Texture(renderer, $"assets/images/frame_upper_right_{size}.png");
-    staticTextureManager[Constants.GuideFrameLowerLeft] = new Texture(renderer, $"assets/images/frame_lower_left_{size}.png");
-    staticTextureManager[Constants.GuideFrameLowerRight] = new Texture(renderer, $"assets/images/frame_lower_right_{size}.png");
-    staticTextureManager[Constants.GuideFrameLeft] = new Texture(renderer, $"assets/images/frame_left_{size}.png");
-    staticTextureManager[Constants.GuideFrameRight] = new Texture(renderer, $"assets/images/frame_right_{size}.png");
-    staticTextureManager[Constants.GuideFrameUpper] = new Texture(renderer, $"assets/images/frame_upper_{size}.png");
-    staticTextureManager[Constants.GuideFrameLower] = new Texture(renderer, $"assets/images/frame_lower_{size}.png");
+    staticTextureManager = new TextureManager(logger, size);
 
-    timeboxFrameTexture = new Texture(renderer, $"assets/images/timebox_frame_{size}.png");
-    timeboxLastFrameTexture = new Texture(renderer, $"assets/images/timebox_last_frame_{size}.png");
-    channelFrameTexture = new Texture(renderer, $"assets/images/channel_frame_{size}.png");
+    var imageAssetDirectories = Directory.GetDirectories("assets/images");
+    foreach (var imageAssetDirectory in imageAssetDirectories)
+    {
+        var assetSize = Path.GetFileName(imageAssetDirectory);
+        foreach (var assetFile in Directory.GetFiles(imageAssetDirectory))
+        {
+            var noExtension = Path.GetFileNameWithoutExtension(assetFile);
+            staticTextureManager.Insert(noExtension, assetSize, new Texture(renderer, assetFile));
+        }
+    }
+
+    timeboxFrameTexture = staticTextureManager["timebox_frame"];
+    timeboxLastFrameTexture = staticTextureManager["timebox_last_frame"];
+    channelFrameTexture = staticTextureManager["channel_frame"];
 
     timeboxFrameOneTime = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont,
-        nowBlock.ToString("h:mm tt"), gridTextYellow, scale));
+    nowBlock.ToString("h:mm tt"), gridTextYellow, scale));
     timeboxFrameTwoTime = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont,
         nowBlock.AddMinutes(30).ToString("h:mm tt"), gridTextYellow, scale));
     timeboxFrameThreeTime = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont,
