@@ -95,7 +95,7 @@ var channelLineUp = new List<LineUpEntry>();
 var channelListings = new List<Listing>();
 
 var fontConfigurationMap =
-    JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(File.ReadAllText("assets/fonts.json"));
+    JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(File.ReadAllText("assets/fonts/fonts.json"));
 var selectedFont = fontConfigurationMap["PrevueGrid"];
 
 IntPtr window;
