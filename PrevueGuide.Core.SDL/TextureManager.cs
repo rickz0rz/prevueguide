@@ -5,12 +5,13 @@ namespace PrevueGuide.Core.SDL;
 
 public class TextureManager : IDisposable
 {
-    private static Dictionary<string, string> _fallBack = new Dictionary<string, string>
+    private static readonly Dictionary<string, string> FallbackSizeMap = new()
     {
         { "2x_smooth", "2x"},
         { "2x", "1x"}
     };
 
+    private readonly ILogger _logger;
     private readonly Dictionary<(string key, string size), Texture?> _textureMap;
     private readonly string _preferredSize;
 
@@ -19,13 +20,15 @@ public class TextureManager : IDisposable
         if (_textureMap.ContainsKey((key, _preferredSize)))
             return _preferredSize;
 
-        var target = _preferredSize;
+        var targetSize = _preferredSize;
 
-        while(_fallBack.ContainsKey(target))
+        while(FallbackSizeMap.ContainsKey(targetSize))
         {
-            target = _fallBack[target];
-            if (_textureMap.ContainsKey((key, target)))
-                return target;
+            targetSize = FallbackSizeMap[targetSize];
+            _logger.LogInformation($@"[Assets] Unable to find size for {key}, testing size {targetSize}");
+
+            if (_textureMap.ContainsKey((key, targetSize)))
+                return targetSize;
         }
 
         throw new Exception($"Asset {key} missing preferred size {_preferredSize} and fallbacks.");
@@ -33,10 +36,13 @@ public class TextureManager : IDisposable
 
     public TextureManager(ILogger logger, string preferredSize)
     {
-        logger.LogInformation($@"[Assets] Using preferred size: {preferredSize}");
+        _logger = logger;
+        _preferredSize = preferredSize;
+
+        _logger.LogInformation($"[Assets] Using preferred size: {_preferredSize}");
 
         _textureMap = new Dictionary<(string key, string size), Texture?>();
-        _preferredSize = preferredSize;
+
     }
 
     public Texture? this[string key] => _textureMap[(key, GetAvailableSize(key))];

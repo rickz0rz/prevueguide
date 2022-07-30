@@ -98,7 +98,7 @@ public static class Generators
             // If the top color isn't null, then render small rectangles to fill up the frame.
             // If the bottom color isn't null, then render small rectangles to fill up the frame.
 
-            var left = textureManager[Constants.GuideFrameLeft];
+            var left = textureManager[Constants.FrameLeft];
             if (left != null)
             {
                 _ = SDL_QueryTexture(left.SdlTexture, out _, out _, out var lw, out _);
@@ -106,7 +106,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, left.SdlTexture, IntPtr.Zero, ref lDstRect);
             }
 
-            var right = textureManager[Constants.GuideFrameRight];
+            var right = textureManager[Constants.FrameRight];
             if (right != null)
             {
                 _ = SDL_QueryTexture(right.SdlTexture, out _, out _, out var rw, out _);
@@ -114,7 +114,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, right.SdlTexture, IntPtr.Zero, ref rDstRect);
             }
 
-            var upper = textureManager[Constants.GuideFrameUpper];
+            var upper = textureManager[Constants.FrameUpper];
             if (upper != null)
             {
                 _ = SDL_QueryTexture(upper.SdlTexture, out _, out _, out _, out var upperHeight);
@@ -122,7 +122,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, upper.SdlTexture, IntPtr.Zero, ref upperDstRect);
             }
 
-            var lower = textureManager[Constants.GuideFrameLower];
+            var lower = textureManager[Constants.FrameLower];
             if (lower != null)
             {
                 _ = SDL_QueryTexture(lower.SdlTexture, out _, out _, out _, out var lowerHeight);
@@ -131,7 +131,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, lower.SdlTexture, IntPtr.Zero, ref lowerDstRect);
             }
 
-            var upperLeft = textureManager[Constants.GuideFrameUpperLeft];
+            var upperLeft = textureManager[Constants.FrameUpperLeft];
             if (upperLeft != null)
             {
                 _ = SDL_QueryTexture(upperLeft.SdlTexture, out _, out _, out var upperLeftWidth,
@@ -140,7 +140,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, upperLeft.SdlTexture, IntPtr.Zero, ref upperLeftDstRect);
             }
 
-            var upperRight = textureManager[Constants.GuideFrameUpperRight];
+            var upperRight = textureManager[Constants.FrameUpperRight];
             if (upperRight != null)
             {
                 _ = SDL_QueryTexture(upperRight.SdlTexture, out _, out _, out var upperRightWidth,
@@ -150,7 +150,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, upperRight.SdlTexture, IntPtr.Zero, ref upperRightDstRect);
             }
 
-            var lowerLeft = textureManager[Constants.GuideFrameLowerLeft];
+            var lowerLeft = textureManager[Constants.FrameLowerLeft];
             if (lowerLeft != null)
             {
                 _ = SDL_QueryTexture(lowerLeft.SdlTexture, out _, out _, out var lowerLeftWidth,
@@ -160,7 +160,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, lowerLeft.SdlTexture, IntPtr.Zero, ref lowerLeftDstRect);
             }
 
-            var lowerRight = textureManager[Constants.GuideFrameLowerRight];
+            var lowerRight = textureManager[Constants.FrameLowerRight];
             if (lowerRight != null)
             {
                 _ = SDL_QueryTexture(lowerRight.SdlTexture, out _, out _, out var lowerRightWidth,
@@ -192,7 +192,7 @@ public static class Generators
                 backgroundColor.a);
             _ = SDL_RenderClear(renderer);
 
-            var left = textureManager[Constants.GuideFrameLeft];
+            var left = textureManager[Constants.FrameLeft];
             if (left != null)
             {
                 _ = SDL_QueryTexture(left.SdlTexture, out _, out _, out var lw, out _);
@@ -200,7 +200,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, left.SdlTexture, IntPtr.Zero, ref lDstRect);
             }
 
-            var right = textureManager[Constants.GuideFrameRight];
+            var right = textureManager[Constants.FrameRight];
             if (right != null)
             {
                 _ = SDL_QueryTexture(right.SdlTexture, out _, out _, out var rw, out _);
@@ -208,7 +208,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, right.SdlTexture, IntPtr.Zero, ref rDstRect);
             }
 
-            var upper = textureManager[Constants.GuideFrameUpper];
+            var upper = textureManager[Constants.FrameUpper];
             if (upper != null)
             {
                 _ = SDL_QueryTexture(upper.SdlTexture, out _, out _, out _, out var upperHeight);
@@ -216,7 +216,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, upper.SdlTexture, IntPtr.Zero, ref upperDstRect);
             }
 
-            var lower = textureManager[Constants.GuideFrameLower];
+            var lower = textureManager[Constants.FrameLower];
             if (lower != null)
             {
                 _ = SDL_QueryTexture(lower.SdlTexture, out _, out _, out _, out var lowerHeight);
@@ -225,7 +225,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, lower.SdlTexture, IntPtr.Zero, ref lowerDstRect);
             }
 
-            var upperLeft = textureManager[Constants.GuideFrameUpperLeft];
+            var upperLeft = textureManager[Constants.FrameUpperLeft];
             if (upperLeft != null)
             {
                 _ = SDL_QueryTexture(upperLeft.SdlTexture, out _, out _, out var upperLeftWidth,
@@ -234,7 +234,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, upperLeft.SdlTexture, IntPtr.Zero, ref upperLeftDstRect);
             }
 
-            var upperRight = textureManager[Constants.GuideFrameUpperRight];
+            var upperRight = textureManager[Constants.FrameUpperRight];
             if (upperRight != null)
             {
                 _ = SDL_QueryTexture(upperRight.SdlTexture, out _, out _, out var upperRightWidth,
@@ -244,7 +244,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, upperRight.SdlTexture, IntPtr.Zero, ref upperRightDstRect);
             }
 
-            var lowerLeft = textureManager[Constants.GuideFrameLowerLeft];
+            var lowerLeft = textureManager[Constants.FrameLowerLeft];
             if (lowerLeft != null)
             {
                 _ = SDL_QueryTexture(lowerLeft.SdlTexture, out _, out _, out var lowerLeftWidth,
@@ -254,7 +254,7 @@ public static class Generators
                 _ = SDL_RenderCopy(renderer, lowerLeft.SdlTexture, IntPtr.Zero, ref lowerLeftDstRect);
             }
 
-            var lowerRight = textureManager[Constants.GuideFrameLowerRight];
+            var lowerRight = textureManager[Constants.FrameLowerRight];
             if (lowerRight != null)
             {
                 _ = SDL_QueryTexture(lowerRight.SdlTexture, out _, out _, out var lowerRightWidth,

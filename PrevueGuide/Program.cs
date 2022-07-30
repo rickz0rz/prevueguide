@@ -177,7 +177,8 @@ async Task ReloadGuideData()
     channelListings.Clear();
     channelListings.AddRange(listings);
 
-    logger.LogInformation($@"[Guide] Channel listings loaded. {channelListings.Count()} listings found in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
+    logger.LogInformation($@"[Guide] Channel listings loaded. {channelListings.Count()} listings found " +
+                          $"in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
 
     regenerateGridTextures = true;
 }
