@@ -56,6 +56,7 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 
     // Cheap but force the logger to flush.
     if (eventArgs.IsTerminating)
+        // ReSharper disable once AccessToDisposedClosure
         loggerFactory?.Dispose();
 };
 
@@ -83,20 +84,19 @@ var channelsAdded = 0;
 // Set this to the beginning of computer time so we can force it to update.
 var currentTimeToDisplay = DateTime.UnixEpoch;
 
-DateTime now;
+DateTime now = DateTime.Now;
 DateTime nowBlock;
 DateTime nowBlockEnd;
 
-now = DateTime.Now;
 SetBlockTimes();
 
-var data = new PrevueGuide.Core.Data.SQLite.SQLiteListingsData(databaseFilename);
+var data = new PrevueGuide.Core.Data.SQLite.SQLiteListingsData(logger, databaseFilename);
 var channelLineUp = new List<LineUpEntry>();
 var channelListings = new List<Listing>();
 
 var fontConfigurationMap =
     JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(File.ReadAllText("assets/fonts/fonts.json"));
-var selectedFont = fontConfigurationMap["PrevueGrid"];
+var selectedFont = fontConfigurationMap?["PrevueGrid"];
 
 IntPtr window;
 IntPtr renderer;
@@ -106,19 +106,9 @@ FontSizeManager fontSizeManager;
 TextureManager staticTextureManager;
 
 Texture? timeTexture = null;
-Texture? channelFrameTexture = null;
-Texture? clockFrameTexture = null;
-Texture? timeboxFrameTexture = null;
-Texture? timeboxLastFrameTexture = null;
-Texture? timeboxFrameOneTime = null;
-Texture? timeboxFrameTwoTime = null;
-Texture? timeboxFrameThreeTime = null;
-
-Texture? columnOneOrTwo = null;
-Texture? columnThree = null;
-Texture? columnOneAndTwo = null;
-Texture? columnTwoAndThree = null;
-Texture? columnOneTwoAndThree = null;
+Texture? channelFrameTexture, clockFrameTexture, timeboxFrameTexture, timeboxLastFrameTexture;
+Texture? timeboxFrameOneTime, timeboxFrameTwoTime, timeboxFrameThreeTime;
+Texture? columnOneOrTwo, columnThree, columnOneAndTwo, columnTwoAndThree, columnOneTwoAndThree;
 
 // These could use some serious love.
 var listingChannelTextureMap = new Dictionary<string, (Texture? Line1, Texture? Line2)>();
@@ -134,7 +124,7 @@ var limitFps = false;
 var gridTextYellow = new SDL_Color { a = 255, r = 203, g = 209, b = 0 };
 var gridTextWhite = new SDL_Color { a = 255, r = 170, g = 170, b = 170 };
 var clockBackgroundColor = new SDL_Color { a = 255, r = 34, g = 41, b = 141 };
-var gridTestRed = new SDL_Color { a = 255, r = 192, g = 0, b = 0 };
+// var gridTestRed = new SDL_Color { a = 255, r = 192, g = 0, b = 0 };
 var gridDefaultBlue = new SDL_Color { a = 255, r = 3, g = 0, b = 88 };
 
 var gridOffset = 0;
@@ -152,10 +142,10 @@ CleanUp();
 
 void SetBlockTimes()
 {
-    logger.LogInformation($@"[Clock] Setting now to {now}");
+    logger.LogInformation("[Clock] Setting now to {time}", now);
     nowBlock = Time.ClampToPreviousHalfHour(now);
     nowBlockEnd = nowBlock.AddMinutes(90);
-    logger.LogInformation($@"[Clock] Time blocks set to {nowBlock} to {nowBlockEnd}");
+    logger.LogInformation("[Clock] Time blocks set to {nowBlock} to {nowBlockEnd}", nowBlock, nowBlockEnd);
 }
 
 async Task ReloadGuideData()
@@ -204,17 +194,14 @@ void GenerateListingTextures()
             var listingList = new List<((int ColumnNumber, int ColumnOffset) ColumnInfo, Texture? Frame, Texture? Line1,
                 Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>();
 
-            if (!listings.Any())
-                continue;
-
             foreach (var listing in listings)
             {
                 var columnInfo = UI.CalculateColumnDetails(listing.Block,
                     firstColumnWidth, secondColumnWidth);
 
-                var remainingDuration = (listing.StartTime > nowBlock)
-                    ? (listing.EndTime - listing.StartTime)
-                    : (listing.EndTime - nowBlock);
+                var remainingDuration = listing.StartTime > nowBlock
+                    ? listing.EndTime - listing.StartTime
+                    : listing.EndTime - nowBlock;
 
                 Texture? frameTexture = null;
 
@@ -267,7 +254,8 @@ void GenerateListingTextures()
                         frameWidth -= (singleArrowWidth * scale);
                 }
 
-                var lines = CalculateLineWidths(listing.Title, frameWidth, new Dictionary<int, int>());
+                var lines =
+                    CalculateLineWidths(listing.Title, frameWidth, new Dictionary<int, int>()).ToList();
 
                 var firstLine = lines.ElementAtOrDefault(0) ?? " ";
                 if (string.IsNullOrWhiteSpace(firstLine))
@@ -275,7 +263,7 @@ void GenerateListingTextures()
                 var line1 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, firstLine,
                     gridTextWhite, scale));
 
-                var secondLine = lines?.ElementAtOrDefault(1);
+                var secondLine = lines.ElementAtOrDefault(1);
                 if (string.IsNullOrWhiteSpace(secondLine))
                     secondLine = " ";
                 var line2 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont, secondLine,
@@ -304,7 +292,7 @@ async Task ProcessXmlTvFile(string filename)
 {
     try
     {
-        logger.LogInformation($"[Processor] Received file {filename}");
+        logger.LogInformation("[Processor] Received file {filename}", filename);
 
         var xmlReaderSettings = new XmlReaderSettings
         {
@@ -328,7 +316,8 @@ async Task ProcessXmlTvFile(string filename)
                 numberOfChannels++;
             }
         }
-        logger.LogInformation($"[Processor] Imported {numberOfChannels} channels in {channelStopWatch.Elapsed}.");
+        logger.LogInformation("[Processor] Imported {numberOfChannels} channels in {elapsedTime}.",
+            numberOfChannels, channelStopWatch.Elapsed);
 
         var listingStopWatch = Stopwatch.StartNew();
         var numberOfPrograms = 0;
@@ -364,7 +353,8 @@ async Task ProcessXmlTvFile(string filename)
             }
         }
 
-        logger.LogInformation($"[Processor] Imported {numberOfPrograms} programs in {listingStopWatch.Elapsed}.");
+        logger.LogInformation("[Processor] Imported {numberOfPrograms} programs in {elapsedTime}.",
+            numberOfPrograms, listingStopWatch.Elapsed);
         logger.LogInformation("[Processor] Guide data imported.");
 
         reloadGuideData = true;
@@ -372,7 +362,8 @@ async Task ProcessXmlTvFile(string filename)
     }
     catch (Exception e)
     {
-        logger.LogError("[Processor] Encountered exception in rendering of XMLTV: {e.Message} @ {e.StackTrace}");
+        logger.LogError("[Processor] Encountered exception in rendering of XMLTV: {message} @ {stackTrace}",
+            e.Message, e.StackTrace);
     }
 }
 
@@ -514,7 +505,7 @@ void Setup()
         foreach (var assetFile in Directory.GetFiles(imageAssetDirectory))
         {
             var noExtension = Path.GetFileNameWithoutExtension(assetFile);
-            staticTextureManager.Insert(noExtension, assetSize, new Texture(renderer, assetFile));
+            staticTextureManager.Insert(noExtension, assetSize, new Texture(logger, renderer, assetFile));
         }
     }
 

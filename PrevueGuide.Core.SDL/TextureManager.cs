@@ -39,7 +39,7 @@ public class TextureManager : IDisposable
         _logger = logger;
         _preferredSize = preferredSize;
 
-        _logger.LogInformation($"[Assets] Using preferred size: {_preferredSize}");
+        _logger.LogInformation("[Assets] Using preferred size: {preferredSize}", _preferredSize);
 
         _textureMap = new Dictionary<(string key, string size), Texture?>();
 

@@ -1,4 +1,5 @@
 using System.Data.SQLite;
+using Microsoft.Extensions.Logging;
 using PrevueGuide.Core.Model;
 
 namespace PrevueGuide.Core.Data.SQLite;
@@ -52,7 +53,7 @@ public class SQLiteListingsData : IListingsData
         _ = command.ExecuteNonQuery();
     }
 
-    public SQLiteListingsData(string filename)
+    public SQLiteListingsData(ILogger logger, string filename)
     {
         // Make sure our tables exist.
         _sqLiteConnection = new SQLiteConnection($"Data Source={filename};Version=3;New=True;Compress=True;");
@@ -61,13 +62,13 @@ public class SQLiteListingsData : IListingsData
         // Validate and generate (if missing) tables
         if (!VerifyTableExists(ChannelLineupTableName))
         {
-            Console.WriteLine($"Warning: Table \"{ChannelLineupTableName}\" doesn't exist, creating.");
+            logger.LogWarning("Warning: Table {tableName} doesn't exist, creating.", ChannelLineupTableName);
             GenerateChannelLineUpTable();
         }
 
         if (!VerifyTableExists(ChannelListingsTableName))
         {
-            Console.WriteLine($"Warning: Table \"{ChannelListingsTableName}\" doesn't exist, creating.");
+            logger.LogWarning("Warning: Table {tableName} doesn't exist, creating.", ChannelListingsTableName);
             GenerateChannelListingsTable();
         }
 
