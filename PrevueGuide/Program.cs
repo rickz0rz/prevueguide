@@ -273,6 +273,9 @@ void GenerateListingTextures()
                     listing.EndTime));
             }
 
+            if (listingTextTextureMap.ContainsKey(channel.Id))
+                continue;
+
             listingTextTextureMap.Add(channel.Id, listingList);
 
             var channelLine1 = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont,
