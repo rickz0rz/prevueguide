@@ -127,7 +127,8 @@ var clockBackgroundColor = new SDL_Color { a = 255, r = 34, g = 41, b = 141 };
 // var gridTestRed = new SDL_Color { a = 255, r = 192, g = 0, b = 0 };
 var gridDefaultBlue = new SDL_Color { a = 255, r = 3, g = 0, b = 88 };
 
-var gridOffset = 0;
+var gridTarget = 0;
+var gridValue = 0;
 var scrollingTest = 0;
 
 Setup();
@@ -142,10 +143,10 @@ CleanUp();
 
 void SetBlockTimes()
 {
-    logger.LogInformation("[Clock] Setting now to {time}", now);
+    // logger.LogInformation("[Clock] Setting now to {time}", now);
     nowBlock = Time.ClampToPreviousHalfHour(now);
     nowBlockEnd = nowBlock.AddMinutes(90);
-    logger.LogInformation("[Clock] Time blocks set to {nowBlock} to {nowBlockEnd}", nowBlock, nowBlockEnd);
+    // logger.LogInformation("[Clock] Time blocks set to {nowBlock} to {nowBlockEnd}", nowBlock, nowBlockEnd);
 }
 
 async Task ReloadGuideData()
@@ -274,7 +275,11 @@ void GenerateListingTextures()
             }
 
             if (listingTextTextureMap.ContainsKey(channel.Id))
+            {
+                logger.LogWarning("Attempted to add channel {callSign} ({id}) but already exists, ignoring.",
+                    channel.CallSign, channel.Id);
                 continue;
+            }
 
             listingTextTextureMap.Add(channel.Id, listingList);
 
@@ -475,6 +480,9 @@ void Setup()
     scale = windowSizeH / windowHeight;
     logger.LogInformation($@"[Window] Scale: {scale}x");
 
+    gridValue = 227;
+    gridTarget = gridValue;
+
     if (window == IntPtr.Zero)
     {
         throw new Exception($"There was an issue creating the window. {SDL_GetError()}");
@@ -571,12 +579,24 @@ void PollEvents()
                     running = false;
                     break;
                 case SDL_Keycode.SDLK_UP:
-                    gridOffset -= (2 * scale);
-                    if (gridOffset < 0)
-                        gridOffset = 0;
+                    gridTarget -= (2 * scale);
+                    if (gridTarget < 0)
+                        gridTarget = 0;
+                    break;
+                case SDL_Keycode.SDLK_0:
+                    gridTarget = 0;
+                    break;
+                case SDL_Keycode.SDLK_1:
+                    gridTarget = 227 + standardRowHeight * 2;
+                    break;
+                case SDL_Keycode.SDLK_2:
+                    gridTarget = 227 + standardRowHeight;
+                    break;
+                case SDL_Keycode.SDLK_3:
+                    gridTarget = 227;
                     break;
                 case SDL_Keycode.SDLK_DOWN:
-                    gridOffset += (2 * scale);
+                    gridTarget += 2;
                     break;
             }
         }
@@ -869,9 +889,14 @@ void Render()
     // Generate the grid
     using var gridTexture = new Texture(GenerateGridTexture());
 
+    if (gridValue > gridTarget)
+        gridValue -= scale;
+    else if (gridValue < gridTarget)
+        gridValue += scale;
+
     // Render the grid.
     _ = SDL_QueryTexture(gridTexture.SdlTexture, out _, out _, out var gridTextureWidth, out var gridTextureHeight);
-    var gridDstRect = new SDL_Rect { h = gridTextureHeight, w = gridTextureWidth, x = 0, y = 227 * scale + gridOffset };
+    var gridDstRect = new SDL_Rect { h = gridTextureHeight, w = gridTextureWidth, x = 0, y = gridValue * scale};
     _ = SDL_RenderCopy(renderer, gridTexture.SdlTexture, IntPtr.Zero, ref gridDstRect);
 
     // Draw FPS.
