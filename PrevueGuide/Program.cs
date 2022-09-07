@@ -62,8 +62,8 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
         loggerFactory?.Dispose();
 };
 
-const int windowWidth = 716;
-const int windowHeight = 436;
+int windowWidth = 716;
+int windowHeight = 436;
 
 const int standardRowHeight = 56;
 const int standardColumnWidth = 172;
@@ -77,7 +77,7 @@ const int doubleArrowWidth = 24;
 const string databaseFilename = "listings.db";
 
 const int numberOfFrameTimesToCapture = 60;
-const int standardGridOffset = windowHeight - (standardRowHeight * 3) - 41;
+int standardGridOffset = 0;
 
 var frameTimeList = new List<long>();
 
@@ -133,6 +133,7 @@ var clockBackgroundColor = new SDL_Color { a = 255, r = 34, g = 41, b = 141 };
 // var gridTestRed = new SDL_Color { a = 255, r = 192, g = 0, b = 0 };
 var gridDefaultBlue = new SDL_Color { a = 255, r = 3, g = 0, b = 88 };
 
+var recalculateRowPositions = true;
 var gridTarget = 0;
 var gridValue = 0;
 var scrollingTest = 0;
@@ -466,6 +467,17 @@ IEnumerable<string> CalculateLineWidths(string targetString, int defaultLineWidt
     return renderedLines;
 }
 
+void SetWindowParameters()
+{
+    SDL_GL_GetDrawableSize(window, out var windowSizeW, out var windowSizeH);
+    logger.LogInformation($@"[Window] Drawable Size: {windowSizeW} x {windowSizeH}");
+    scale = windowSizeH / windowHeight;
+    logger.LogInformation($@"[Window] Scale: {scale}x");
+
+    // Override things for a smooth transition.
+    gridTarget = gridValue = windowHeight - (standardRowHeight * rowsVisible) - 41;
+}
+
 // Setup all of the SDL resources we'll need to display a window.
 void Setup()
 {
@@ -483,15 +495,9 @@ void Setup()
         SDL_WINDOWPOS_UNDEFINED,
         windowWidth,
         windowHeight,
-        SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI);
+        SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI /* | SDL_WindowFlags.SDL_WINDOW_RESIZABLE */ );
 
-    SDL_GL_GetDrawableSize(window, out var windowSizeW, out var windowSizeH);
-    logger.LogInformation($@"[Window] Drawable Size: {windowSizeW} x {windowSizeH}");
-    scale = windowSizeH / windowHeight;
-    logger.LogInformation($@"[Window] Scale: {scale}x");
-
-    gridValue = standardGridOffset;
-    gridTarget = gridValue;
+    SetWindowParameters();
 
     if (window == IntPtr.Zero)
     {
@@ -565,6 +571,13 @@ void PollEvents()
             running = false;
         else if (sdlEvent.type == SDL_EventType.SDL_WINDOWEVENT)
         {
+            if (sdlEvent.window.windowEvent == SDL_WindowEventID.SDL_WINDOWEVENT_RESIZED)
+            {
+                var resizedWindow = SDL_GetWindowFromID(sdlEvent.window.windowID);
+                SDL_GetWindowSize(resizedWindow, out windowWidth, out windowHeight);
+                SetWindowParameters();
+            }
+
             // Interested in:
             // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_LOST
             // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_GAINED
@@ -590,50 +603,62 @@ void PollEvents()
                     break;
                 case SDL_Keycode.SDLK_0:
                     fullscreen = true;
+                    recalculateRowPositions = true;
                     break;
                 case SDL_Keycode.SDLK_1:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 1;
                     break;
                 case SDL_Keycode.SDLK_2:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 2;
                     break;
                 case SDL_Keycode.SDLK_3:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 3;
                     break;
                 case SDL_Keycode.SDLK_4:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 4;
                     break;
                 case SDL_Keycode.SDLK_5:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 5;
                     break;
                 case SDL_Keycode.SDLK_6:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 6;
                     break;
                 case SDL_Keycode.SDLK_7:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 7;
                     break;
                 case SDL_Keycode.SDLK_8:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 8;
                     break;
                 case SDL_Keycode.SDLK_9:
                     fullscreen = false;
+                    recalculateRowPositions = true;
                     rowsVisible = 9;
                     break;
                 case SDL_Keycode.SDLK_UP:
+                    recalculateRowPositions = true;
                     if (fullscreen)
                         fullscreen = false;
                     else
                         rowsVisible++;
                     break;
                 case SDL_Keycode.SDLK_DOWN:
+                    recalculateRowPositions = true;
                     if (fullscreen)
                         fullscreen = false;
                     else
@@ -644,7 +669,10 @@ void PollEvents()
                     }
                     break;
             }
+        }
 
+        if (recalculateRowPositions)
+        {
             if (fullscreen)
             {
                 gridTarget = 0;
@@ -653,6 +681,8 @@ void PollEvents()
             {
                 gridTarget = windowHeight - (standardRowHeight * rowsVisible) - 41;
             }
+
+            recalculateRowPositions = false;
         }
     }
 }
