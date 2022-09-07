@@ -115,6 +115,7 @@ var listingChannelTextureMap = new Dictionary<string, (Texture? Line1, Texture? 
 var listingTextTextureMap = new Dictionary<string, List<((int ColumnNumber, int ColumnOffset) ColumnInfo, Texture? Frame, Texture? Line1, Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>>();
 
 const int numberOfFrameTimesToCapture = 60;
+const int standardGridOffset = 227;
 
 int scale;
 var running = true;
@@ -480,7 +481,7 @@ void Setup()
     scale = windowSizeH / windowHeight;
     logger.LogInformation($@"[Window] Scale: {scale}x");
 
-    gridValue = 227;
+    gridValue = standardGridOffset;
     gridTarget = gridValue;
 
     if (window == IntPtr.Zero)
@@ -587,13 +588,13 @@ void PollEvents()
                     gridTarget = 0;
                     break;
                 case SDL_Keycode.SDLK_1:
-                    gridTarget = 227 + standardRowHeight * 2;
+                    gridTarget = standardGridOffset + standardRowHeight * 2;
                     break;
                 case SDL_Keycode.SDLK_2:
-                    gridTarget = 227 + standardRowHeight;
+                    gridTarget = standardGridOffset + standardRowHeight;
                     break;
                 case SDL_Keycode.SDLK_3:
-                    gridTarget = 227;
+                    gridTarget = standardGridOffset;
                     break;
                 case SDL_Keycode.SDLK_DOWN:
                     gridTarget += 2;
@@ -890,9 +891,9 @@ void Render()
     using var gridTexture = new Texture(GenerateGridTexture());
 
     if (gridValue > gridTarget)
-        gridValue -= scale;
+        gridValue -= 1;
     else if (gridValue < gridTarget)
-        gridValue += scale;
+        gridValue += 1;
 
     // Render the grid.
     _ = SDL_QueryTexture(gridTexture.SdlTexture, out _, out _, out var gridTextureWidth, out var gridTextureHeight);
