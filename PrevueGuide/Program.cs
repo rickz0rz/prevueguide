@@ -39,6 +39,8 @@ using var loggerFactory = LoggerFactory.Create(builder =>
 // If an object is no longer going to be visible (passes over the top threashold of the frame) it's evicted
 //     from the cache.
 // Re-generate the queue whenever the timebox changes.
+// todo: press d to delete database
+// Timebox appearance is what re-triggers timebox calculations
 
 var logger = loggerFactory.CreateLogger<Program>();
 
@@ -74,12 +76,18 @@ const int doubleArrowWidth = 24;
 
 const string databaseFilename = "listings.db";
 
+const int numberOfFrameTimesToCapture = 60;
+const int standardGridOffset = windowHeight - (standardRowHeight * 3) - 41;
+
 var frameTimeList = new List<long>();
 
 var reloadGuideData = true;
 var regenerateGridTextures = false;
 var channelsToRender = 10;
 var channelsAdded = 0;
+
+var rowsVisible = 3;
+var fullscreen = false;
 
 // Set this to the beginning of computer time so we can force it to update.
 var currentTimeToDisplay = DateTime.UnixEpoch;
@@ -113,9 +121,6 @@ Texture? columnOneOrTwo, columnThree, columnOneAndTwo, columnTwoAndThree, column
 // These could use some serious love.
 var listingChannelTextureMap = new Dictionary<string, (Texture? Line1, Texture? Line2)>();
 var listingTextTextureMap = new Dictionary<string, List<((int ColumnNumber, int ColumnOffset) ColumnInfo, Texture? Frame, Texture? Line1, Texture? Line2, int Block, DateTime StartTime, DateTime EndTime)>>();
-
-const int numberOfFrameTimesToCapture = 60;
-const int standardGridOffset = 227;
 
 int scale;
 var running = true;
@@ -255,6 +260,10 @@ void GenerateListingTextures()
                     else
                         frameWidth -= (singleArrowWidth * scale);
                 }
+
+                // The frame has the bevel so take that into account.
+                // The bevel is 4 pixels on each side, so that * 2, scaled.
+                frameWidth -= (8 * scale);
 
                 var lines =
                     CalculateLineWidths(listing.Title, frameWidth, new Dictionary<int, int>()).ToList();
@@ -579,26 +588,70 @@ void PollEvents()
                 case SDL_Keycode.SDLK_q:
                     running = false;
                     break;
-                case SDL_Keycode.SDLK_UP:
-                    gridTarget -= (2 * scale);
-                    if (gridTarget < 0)
-                        gridTarget = 0;
-                    break;
                 case SDL_Keycode.SDLK_0:
-                    gridTarget = 0;
+                    fullscreen = true;
                     break;
                 case SDL_Keycode.SDLK_1:
-                    gridTarget = standardGridOffset + standardRowHeight * 2;
+                    fullscreen = false;
+                    rowsVisible = 1;
                     break;
                 case SDL_Keycode.SDLK_2:
-                    gridTarget = standardGridOffset + standardRowHeight;
+                    fullscreen = false;
+                    rowsVisible = 2;
                     break;
                 case SDL_Keycode.SDLK_3:
-                    gridTarget = standardGridOffset;
+                    fullscreen = false;
+                    rowsVisible = 3;
+                    break;
+                case SDL_Keycode.SDLK_4:
+                    fullscreen = false;
+                    rowsVisible = 4;
+                    break;
+                case SDL_Keycode.SDLK_5:
+                    fullscreen = false;
+                    rowsVisible = 5;
+                    break;
+                case SDL_Keycode.SDLK_6:
+                    fullscreen = false;
+                    rowsVisible = 6;
+                    break;
+                case SDL_Keycode.SDLK_7:
+                    fullscreen = false;
+                    rowsVisible = 7;
+                    break;
+                case SDL_Keycode.SDLK_8:
+                    fullscreen = false;
+                    rowsVisible = 8;
+                    break;
+                case SDL_Keycode.SDLK_9:
+                    fullscreen = false;
+                    rowsVisible = 9;
+                    break;
+                case SDL_Keycode.SDLK_UP:
+                    if (fullscreen)
+                        fullscreen = false;
+                    else
+                        rowsVisible++;
                     break;
                 case SDL_Keycode.SDLK_DOWN:
-                    gridTarget += 2;
+                    if (fullscreen)
+                        fullscreen = false;
+                    else
+                    {
+                        rowsVisible--;
+                        if (rowsVisible < 1)
+                            rowsVisible = 1;
+                    }
                     break;
+            }
+
+            if (fullscreen)
+            {
+                gridTarget = 0;
+            }
+            else
+            {
+                gridTarget = windowHeight - (standardRowHeight * rowsVisible) - 41;
             }
         }
     }
