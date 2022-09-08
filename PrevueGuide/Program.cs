@@ -467,6 +467,8 @@ IEnumerable<string> CalculateLineWidths(string targetString, int defaultLineWidt
     return renderedLines;
 }
 
+int GenerateTargetHeight() => windowHeight - (standardRowHeight * rowsVisible) - 41;
+
 void SetWindowParameters()
 {
     SDL_GL_GetDrawableSize(window, out var windowSizeW, out var windowSizeH);
@@ -475,7 +477,7 @@ void SetWindowParameters()
     logger.LogInformation($@"[Window] Scale: {scale}x");
 
     // Override things for a smooth transition.
-    gridTarget = gridValue = windowHeight - (standardRowHeight * rowsVisible) - 41;
+    gridTarget = gridValue = GenerateTargetHeight();
 }
 
 // Setup all of the SDL resources we'll need to display a window.
@@ -586,7 +588,14 @@ void PollEvents()
         else if (sdlEvent.type == SDL_EventType.SDL_DROPFILE)
         {
             var filename = Marshal.PtrToStringAuto(sdlEvent.drop.file);
-            Task.Run(() => ProcessXmlTvFile(filename).Wait());
+
+            if (!File.Exists(filename))
+                filename = Marshal.PtrToStringAnsi(sdlEvent.drop.file);
+
+            if (File.Exists(filename))
+                Task.Run(() => ProcessXmlTvFile(filename).Wait());
+            else
+                logger.LogWarning("Unable to locate file {filename} for import", filename);
         }
         else if (sdlEvent.type == SDL_EventType.SDL_KEYDOWN)
         {
@@ -679,7 +688,7 @@ void PollEvents()
             }
             else
             {
-                gridTarget = windowHeight - (standardRowHeight * rowsVisible) - 41;
+                gridTarget = GenerateTargetHeight();
             }
 
             recalculateRowPositions = false;
