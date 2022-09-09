@@ -74,6 +74,8 @@ const int thirdColumnWidth = standardColumnWidth + 36; // For rendering the fram
 const int singleArrowWidth = 16;
 const int doubleArrowWidth = 24;
 
+var backgroundColor = new { Red = (byte)255, Green = (byte)0, Blue = (byte)255 };
+
 const string databaseFilename = "listings.db";
 
 const int numberOfFrameTimesToCapture = 60;
@@ -158,27 +160,34 @@ void SetBlockTimes()
 
 async Task ReloadGuideData()
 {
-    var channelLineUpStopwatch = Stopwatch.StartNew();
-    var channels = await data.GetChannelLineup();
-    channelLineUp.Clear();
-    channelLineUp.AddRange(channels);
-    logger.LogInformation("[Guide] Channel line-up loaded. {channelLineUpCount} channels found in " +
-                          "{loadTimeMilliseconds} ms.",
-        channelLineUp.Count,
-        channelLineUpStopwatch.ElapsedMilliseconds);
+    try
+    {
+        var channelLineUpStopwatch = Stopwatch.StartNew();
+        var channels = await data.GetChannelLineup();
+        channelLineUp.Clear();
+        channelLineUp.AddRange(channels);
+        logger.LogInformation("[Guide] Channel line-up loaded. {channelLineUpCount} channels found in " +
+                              "{loadTimeMilliseconds} ms.",
+            channelLineUp.Count,
+            channelLineUpStopwatch.ElapsedMilliseconds);
 
-    // hack
-    channelsToRender = new[] { channelLineUp.Count, channelsToRender }.Min();
+        // hack
+        channelsToRender = new[] { channelLineUp.Count, channelsToRender }.Min();
 
-    var channelListingsStopwatch = Stopwatch.StartNew();
-    var listings = await data.GetChannelListings(nowBlock, nowBlockEnd);
-    channelListings.Clear();
-    channelListings.AddRange(listings);
+        var channelListingsStopwatch = Stopwatch.StartNew();
+        var listings = await data.GetChannelListings(nowBlock, nowBlockEnd);
+        channelListings.Clear();
+        channelListings.AddRange(listings);
 
-    logger.LogInformation($@"[Guide] Channel listings loaded. {channelListings.Count()} listings found " +
-                          $"in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
+        logger.LogInformation($@"[Guide] Channel listings loaded. {channelListings.Count()} listings found " +
+                              $"in {channelListingsStopwatch.ElapsedMilliseconds} ms.");
 
-    regenerateGridTextures = true;
+        regenerateGridTextures = true;
+    }
+    catch (Exception e)
+    {
+        logger.LogError(e, "Exception when reloading guide data");
+    }
 }
 
 void GenerateListingTextures()
@@ -266,8 +275,11 @@ void GenerateListingTextures()
                 // The bevel is 4 pixels on each side, so that * 2, scaled.
                 frameWidth -= (8 * scale);
 
+                var listingText = listing.Category == "Movie"
+                    ? $"\"{listing.Title}\" ({listing.Year}) {listing.Description}"
+                    : listing.Title;
                 var lines =
-                    CalculateLineWidths(listing.Title, frameWidth, new Dictionary<int, int>()).ToList();
+                    CalculateLineWidths(listingText, frameWidth, new Dictionary<int, int>()).ToList();
 
                 var firstLine = lines.ElementAtOrDefault(0) ?? " ";
                 if (string.IsNullOrWhiteSpace(firstLine))
@@ -342,13 +354,16 @@ async Task ProcessXmlTvFile(string filename)
         var numberOfPrograms = 0;
         if (tv.Programme != null)
         {
-            var queue = new Queue<(string, string, string, DateTime, DateTime)>();
+            var queue = new Queue<(string, string, string, string, string, DateTime, DateTime)>();
 
             foreach (var programme in tv.Programme)
             {
                 var title = programme.Title.First().Text;
                 var description = programme.Desc.FirstOrDefault()?.Text ?? "";
-                queue.Enqueue((programme.SourceName, title, description,
+                var category = programme.Category.FirstOrDefault()?.Text ?? "";
+                var year = programme.Date ?? "";
+
+                queue.Enqueue((programme.SourceName, title, category, description, year,
                     DateTime.ParseExact(programme.Start, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo,
                         DateTimeStyles.AssumeLocal).ToUniversalTime(),
                     DateTime.ParseExact(programme.Stop, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo,
@@ -358,7 +373,7 @@ async Task ProcessXmlTvFile(string filename)
 
             while (queue.Any())
             {
-                var list = new List<(string, string, string, DateTime, DateTime)>();
+                var list = new List<(string, string, string, string, string, DateTime, DateTime)>();
 
                 for (var i = 0; i < 30; i++)
                 {
@@ -976,7 +991,7 @@ void Render()
     var frameDrawStopWatch = Stopwatch.StartNew();
     var frameDelayStopWatch = Stopwatch.StartNew();
 
-    _ = SDL_SetRenderDrawColor(renderer, 255, 0, 255, 255);
+    _ = SDL_SetRenderDrawColor(renderer, backgroundColor.Red, backgroundColor.Green, backgroundColor.Blue, 255);
     _ = SDL_RenderClear(renderer);
 
     // Generate the grid
@@ -1047,17 +1062,17 @@ void CleanUp()
 
     foreach (var k in listingTextTextureMap.Keys)
     {
-        foreach (var sublisting in listingTextTextureMap[k])
+        foreach (var subListing in listingTextTextureMap[k])
         {
-            sublisting.Line1.Dispose();
-            sublisting.Line2.Dispose();
+            subListing.Line1?.Dispose();
+            subListing.Line2?.Dispose();
         }
     }
 
     foreach (var t in listingChannelTextureMap.Keys)
     {
-        listingChannelTextureMap[t].Line1.Dispose();
-        listingChannelTextureMap[t].Line2.Dispose();
+        listingChannelTextureMap[t].Line1?.Dispose();
+        listingChannelTextureMap[t].Line2?.Dispose();
     }
 
     SDL_DestroyRenderer(renderer);
