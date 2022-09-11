@@ -11,6 +11,8 @@ public record Listing
     public string Category { get; init; }
     public string Description { get; init; }
     public string Year { get; init; }
+    public string Rating { get; init; }
+    public string Subtitled { get; init; }
     public DateTime StartTime { get; init; }
     public DateTime EndTime { get; init; }
 }

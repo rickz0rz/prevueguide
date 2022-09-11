@@ -20,6 +20,9 @@ public class SQLiteListingsData : IListingsData
     private const string ChannelListingsYearColumnName = "Year";
     private const string ChannelListingsStartTimeColumnName = "StartTime";
     private const string ChannelListingsEndTimeColumnName = "EndTime";
+    private const string ChannelListingsRatingColumnName = "Rating";
+    private const string ChannelListingsSubtitledColumnName = "Subtitled";
+
 
     private readonly SQLiteConnection _sqLiteConnection;
 
@@ -53,7 +56,9 @@ public class SQLiteListingsData : IListingsData
                               $"{ChannelListingsDescriptionColumnName} TEXT, " +
                               $"{ChannelListingsYearColumnName} TEXT, " +
                               $"{ChannelListingsStartTimeColumnName} TEXT, " +
-                              $"{ChannelListingsEndTimeColumnName} TEXT)";
+                              $"{ChannelListingsEndTimeColumnName} TEXT, " +
+                              $"{ChannelListingsRatingColumnName} TEXT, " +
+                              $"{ChannelListingsSubtitledColumnName} TEXT)";
         _ = command.ExecuteNonQuery();
     }
 
@@ -123,8 +128,8 @@ public class SQLiteListingsData : IListingsData
         return results;
     }
 
-    public async Task AddChannelListing(List<(string channelId, string title, string category,
-        string description, string year, DateTime startTime, DateTime endTime)> listings)
+    public async Task AddChannelListing(List<(string channelId, string title, string category, string description,
+        string year, string rating, string subtitled, DateTime startTime, DateTime endTime)> listings)
     {
         await using var command = _sqLiteConnection.CreateCommand();
         var valuesList = new List<string>();
@@ -134,6 +139,7 @@ public class SQLiteListingsData : IListingsData
             valuesList.Add($"(@{ChannelListingsChannelIdColumnName}{i}, @{ChannelListingsTitleColumnName}{i}," +
                            $"@{ChannelListingsBlockColumnName}{i}, @{ChannelListingsCategoryColumnName}{i}," +
                            $"@{ChannelListingsDescriptionColumnName}{i}, @{ChannelListingsYearColumnName}{i}, " +
+                           $"@{ChannelListingsRatingColumnName}{i}, @{ChannelListingsSubtitledColumnName}{i}, " +
                            $"@{ChannelListingsStartTimeColumnName}{i}, @{ChannelListingsEndTimeColumnName}{i})");
 
             var listing = listings.ElementAt(i);
@@ -146,6 +152,8 @@ public class SQLiteListingsData : IListingsData
             command.Parameters.AddWithValue($"@{ChannelListingsCategoryColumnName}{i}", listing.category);
             command.Parameters.AddWithValue($"@{ChannelListingsDescriptionColumnName}{i}", listing.description);
             command.Parameters.AddWithValue($"@{ChannelListingsYearColumnName}{i}", listing.year);
+            command.Parameters.AddWithValue($"@{ChannelListingsRatingColumnName}{i}", listing.rating);
+            command.Parameters.AddWithValue($"@{ChannelListingsSubtitledColumnName}{i}", listing.subtitled);
             command.Parameters.AddWithValue($"@{ChannelListingsStartTimeColumnName}{i}", listing.startTime.ToString("o"));
             command.Parameters.AddWithValue($"@{ChannelListingsEndTimeColumnName}{i}", listing.endTime.ToString("o"));
         }
@@ -153,7 +161,8 @@ public class SQLiteListingsData : IListingsData
         command.CommandText =
             $"INSERT OR IGNORE INTO {ChannelListingsTableName} ({ChannelListingsChannelIdColumnName}, {ChannelListingsTitleColumnName}, " +
             $"{ChannelListingsBlockColumnName}, {ChannelListingsCategoryColumnName}, {ChannelListingsDescriptionColumnName}," +
-            $"{ChannelListingsYearColumnName}, {ChannelListingsStartTimeColumnName}, {ChannelListingsEndTimeColumnName}) " +
+            $"{ChannelListingsYearColumnName}, {ChannelListingsRatingColumnName}, {ChannelListingsSubtitledColumnName}, " +
+            $"{ChannelListingsStartTimeColumnName}, {ChannelListingsEndTimeColumnName}) " +
             $"VALUES {string.Join(",", valuesList)}";
 
         await command.ExecuteNonQueryAsync();
@@ -197,6 +206,8 @@ public class SQLiteListingsData : IListingsData
         var categoryColumnIndex = reader.GetOrdinal(ChannelListingsCategoryColumnName);
         var descriptionColumnIndex = reader.GetOrdinal(ChannelListingsDescriptionColumnName);
         var yearColumnIndex = reader.GetOrdinal(ChannelListingsYearColumnName);
+        var ratingColumnIndex = reader.GetOrdinal(ChannelListingsRatingColumnName);
+        var subtitledColumnIndex = reader.GetOrdinal(ChannelListingsSubtitledColumnName);
         var startTimeColumnIndex = reader.GetOrdinal(ChannelListingsStartTimeColumnName);
         var endTimeColumnIndex = reader.GetOrdinal(ChannelListingsEndTimeColumnName);
 
@@ -210,6 +221,8 @@ public class SQLiteListingsData : IListingsData
                 Category = reader.GetString(categoryColumnIndex),
                 Description = reader.GetString(descriptionColumnIndex),
                 Year = reader.GetString(yearColumnIndex),
+                Rating = reader.GetString(ratingColumnIndex),
+                Subtitled = reader.GetString(subtitledColumnIndex),
                 StartTime = DateTime.Parse(reader.GetString(startTimeColumnIndex)),
                 EndTime = DateTime.Parse(reader.GetString(endTimeColumnIndex))
             });

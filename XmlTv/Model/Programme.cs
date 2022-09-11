@@ -22,7 +22,7 @@ public class Programme
     [XmlElement(ElementName="previously-shown")]
     public PreviouslyShown? PreviouslyShown { get; set; }
     [XmlElement(ElementName="subtitles")]
-    public List<Subtitles>? Subtitles { get; set; }
+    public Subtitles Subtitles { get; set; }
     [XmlAttribute(AttributeName="start")]
     public string? Start { get; set; }
     [XmlAttribute(AttributeName="stop")]

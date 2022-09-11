@@ -79,7 +79,7 @@ var backgroundColor = new { Red = (byte)255, Green = (byte)0, Blue = (byte)255 }
 const string databaseFilename = "listings.db";
 
 const int numberOfFrameTimesToCapture = 60;
-int standardGridOffset = 0;
+int standardGridOffset;
 
 var frameTimeList = new List<long>();
 
@@ -275,9 +275,49 @@ void GenerateListingTextures()
                 // The bevel is 4 pixels on each side, so that * 2, scaled.
                 frameWidth -= (8 * scale);
 
+                var prevueFontMap = new Dictionary<string, string>
+                {
+                    // { "G": "" }
+                    { "NR", "\uF008"},
+                    { "G", "\uF009"},
+                    { "PG", "\uF00A"},
+                    { "PG-13", "\uF00B"},
+                    { "NC-17", "\uF00C"},
+                    { "R", "\uF00D"},
+                    { "ADULT", "\uF00E"},
+                    { "TV-Y", "\uF00F"},
+                    { "TV-Y7", "\uF010"},
+                    { "TV-G", "\uF011"},
+                    { "TV-PG", "\uF012"},
+                    { "TV-14", "\uF013"},
+                    { "TV-M", "\uF014"},
+                    { "TV-MA", "\uF015"},
+                    { "CC", "\uF01C"},
+                };
+
+                var isPrevueFont = true;
+
+                var listingRating = "";
+                var listingSubtitled = "";
+
+                if (!string.IsNullOrWhiteSpace(listing.Rating))
+                {
+                    listingRating = isPrevueFont
+                        ? $" {prevueFontMap[listing.Rating]}"
+                        : $" {listing.Rating}";
+                }
+
+                if (!string.IsNullOrWhiteSpace(listing.Subtitled))
+                {
+                    listingSubtitled = isPrevueFont
+                        ? $" {prevueFontMap[listing.Subtitled]}"
+                        : $" {listing.Subtitled}";
+                }
+
                 var listingText = listing.Category == "Movie"
-                    ? $"\"{listing.Title}\" ({listing.Year}) {listing.Description}"
-                    : listing.Title;
+                    ? $"\"{listing.Title}\" ({listing.Year}) {listing.Description}{listingRating}{listingSubtitled}"
+                    : $"{listing.Title}{listingRating}{listingSubtitled}";
+
                 var lines =
                     CalculateLineWidths(listingText, frameWidth, new Dictionary<int, int>()).ToList();
 
@@ -317,6 +357,8 @@ void GenerateListingTextures()
             channelsAdded++;
         }
     }
+
+    logger.LogInformation(("[Textures] Texture generation complete"));
 }
 
 async Task ProcessXmlTvFile(string filename)
@@ -354,7 +396,7 @@ async Task ProcessXmlTvFile(string filename)
         var numberOfPrograms = 0;
         if (tv.Programme != null)
         {
-            var queue = new Queue<(string, string, string, string, string, DateTime, DateTime)>();
+            var queue = new Queue<(string, string, string, string, string, string, string, DateTime, DateTime)>();
 
             foreach (var programme in tv.Programme)
             {
@@ -362,8 +404,13 @@ async Task ProcessXmlTvFile(string filename)
                 var description = programme.Desc.FirstOrDefault()?.Text ?? "";
                 var category = programme.Category.FirstOrDefault()?.Text ?? "";
                 var year = programme.Date ?? "";
+                var rating = programme.Rating?.Value?.FirstOrDefault() ?? "";
+                var subtitled = programme.Subtitles.Type ?? "";
 
-                queue.Enqueue((programme.SourceName, title, category, description, year,
+                if (subtitled == "teletext")
+                    subtitled = "CC";
+
+                queue.Enqueue((programme.SourceName, title, category, description, year, rating, subtitled,
                     DateTime.ParseExact(programme.Start, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo,
                         DateTimeStyles.AssumeLocal).ToUniversalTime(),
                     DateTime.ParseExact(programme.Stop, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo,
@@ -373,7 +420,7 @@ async Task ProcessXmlTvFile(string filename)
 
             while (queue.Any())
             {
-                var list = new List<(string, string, string, string, string, DateTime, DateTime)>();
+                var list = new List<(string, string, string, string, string, string, string, DateTime, DateTime)>();
 
                 for (var i = 0; i < 30; i++)
                 {
