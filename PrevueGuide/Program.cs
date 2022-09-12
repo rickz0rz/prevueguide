@@ -275,42 +275,20 @@ void GenerateListingTextures()
                 // The bevel is 4 pixels on each side, so that * 2, scaled.
                 frameWidth -= (8 * scale);
 
-                var prevueFontMap = new Dictionary<string, string>
-                {
-                    // { "G": "" }
-                    { "NR", "\uF008"},
-                    { "G", "\uF009"},
-                    { "PG", "\uF00A"},
-                    { "PG-13", "\uF00B"},
-                    { "NC-17", "\uF00C"},
-                    { "R", "\uF00D"},
-                    { "ADULT", "\uF00E"},
-                    { "TV-Y", "\uF00F"},
-                    { "TV-Y7", "\uF010"},
-                    { "TV-G", "\uF011"},
-                    { "TV-PG", "\uF012"},
-                    { "TV-14", "\uF013"},
-                    { "TV-M", "\uF014"},
-                    { "TV-MA", "\uF015"},
-                    { "CC", "\uF01C"},
-                };
-
-                var isPrevueFont = true;
-
                 var listingRating = "";
                 var listingSubtitled = "";
 
                 if (!string.IsNullOrWhiteSpace(listing.Rating))
                 {
-                    listingRating = isPrevueFont
-                        ? $" {prevueFontMap[listing.Rating]}"
+                    listingRating = selectedFont.IconMap.ContainsKey(listing.Rating)
+                        ? $" {selectedFont.IconMap[listing.Rating].Value}"
                         : $" {listing.Rating}";
                 }
 
                 if (!string.IsNullOrWhiteSpace(listing.Subtitled))
                 {
-                    listingSubtitled = isPrevueFont
-                        ? $" {prevueFontMap[listing.Subtitled]}"
+                    listingSubtitled = selectedFont.IconMap.ContainsKey(listing.Subtitled)
+                        ? $" {selectedFont.IconMap[listing.Subtitled].Value}"
                         : $" {listing.Subtitled}";
                 }
 
@@ -1138,10 +1116,17 @@ record Channel
     public string CallSign { get; init; }
 }
 
+record IconMap
+{
+    public string Type { get; init; }
+    public string Value { get; init; }
+}
+
 record FontConfiguration
 {
     public string Filename { get; init; }
     public int PointSize { get; init; }
     public int XOffset { get; init; } = 0;
     public int YOffset { get; init; } = 0;
+    public Dictionary<string, IconMap> IconMap { get; init; } = new Dictionary<string, IconMap>();
 }

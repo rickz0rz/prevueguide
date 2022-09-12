@@ -3,7 +3,69 @@
     "Filename": "assets/fonts/PrevueGrid.ttf",
     "PointSize": 25,
     "XOffset": 0,
-    "YOffset": 0
+    "YOffset": 0,
+    "IconMap": {
+      "NR": {
+        "Type": "text",
+        "Value": "\uF008"
+      },
+      "G": {
+        "Type": "text",
+        "Value": "\uF009"
+      },
+      "PG": {
+        "Type": "text",
+        "Value": "\uF00A"
+      },
+      "PG-13": {
+        "Type": "text",
+        "Value": "\uF00B"
+      },
+      "NC-17": {
+        "Type": "text",
+        "Value": "\uF00C"
+      },
+      "R": {
+        "Type": "text",
+        "Value": "\uF00D"
+      },
+      "ADULT": {
+        "Type": "text",
+        "Value": "\uF00E"
+      },
+      "TV-Y": {
+        "Type": "text",
+        "Value": "\uF00F"
+      },
+      "TV-Y7": {
+        "Type": "text",
+        "Value": "\uF010"
+      },
+      "TV-G": {
+        "Type": "text",
+        "Value": "\uF011"
+      },
+      "TV-PG": {
+        "Type": "text",
+        "Value": "\uF012"
+      },
+      "TV-14": {
+        "Type": "text",
+        "Value": "\uF013"
+      },
+      "TV-M": {
+        "Type": "text",
+        "Value": "\uF014"
+      },
+      "TV-MA": {
+        "Type": "text",
+        "Value": "\uF015"
+      },
+      "CC": {
+        "Type": "text",
+        "Value": "\uF01C"
+      }
+    }
   },
   "ab-preview": {
     "Filename": "assets/fonts/ab-preview.ttf",
