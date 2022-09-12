@@ -383,7 +383,7 @@ async Task ProcessXmlTvFile(string filename)
                 var category = programme.Category.FirstOrDefault()?.Text ?? "";
                 var year = programme.Date ?? "";
                 var rating = programme.Rating?.Value?.FirstOrDefault() ?? "";
-                var subtitled = programme.Subtitles.Type ?? "";
+                var subtitled = programme.Subtitles?.FirstOrDefault(s => s.Type == "teletext")?.Type ?? "";
 
                 if (subtitled == "teletext")
                     subtitled = "CC";
