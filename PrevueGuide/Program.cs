@@ -62,33 +62,31 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
         loggerFactory?.Dispose();
 };
 
+// Modifyable values.
 int windowWidth = 716;
 int windowHeight = 436;
+var preferSmoothTextures = true;
+var backgroundColor = new { Red = (byte)255, Green = (byte)0, Blue = (byte)255 };
+const string databaseFilename = "listings.db";
+const int numberOfFrameTimesToCapture = 60;
+const int defaultRowsVisible = 3;
+var channelsToRender = 10;
 
+// Try not to change these.
 const int standardRowHeight = 56;
 const int standardColumnWidth = 172;
 const int firstColumnWidth = standardColumnWidth;
 const int secondColumnWidth = standardColumnWidth;
-const int thirdColumnWidth = standardColumnWidth + 36; // For rendering the frame, it's this but when generating
-                                                       // contents in the 3rd column, use the standard column width.
+const int thirdColumnWidth = standardColumnWidth + 36;
 const int singleArrowWidth = 16;
 const int doubleArrowWidth = 24;
 
-var backgroundColor = new { Red = (byte)255, Green = (byte)0, Blue = (byte)255 };
-
-const string databaseFilename = "listings.db";
-
-const int numberOfFrameTimesToCapture = 60;
 int standardGridOffset;
-
 var frameTimeList = new List<long>();
-
 var reloadGuideData = true;
 var regenerateGridTextures = false;
-var channelsToRender = 10;
 var channelsAdded = 0;
-
-var rowsVisible = 3;
+var currentRowsVisible = defaultRowsVisible;
 var fullscreen = false;
 
 // Set this to the beginning of computer time so we can force it to update.
@@ -113,7 +111,7 @@ IntPtr renderer;
 IntPtr openedTtfFont;
 
 FontSizeManager fontSizeManager;
-TextureManager staticTextureManager;
+GuideEngine guideEngine;
 
 Texture? timeTexture = null;
 Texture? channelFrameTexture, clockFrameTexture, timeboxFrameTexture, timeboxLastFrameTexture;
@@ -383,10 +381,7 @@ async Task ProcessXmlTvFile(string filename)
                 var category = programme.Category.FirstOrDefault()?.Text ?? "";
                 var year = programme.Date ?? "";
                 var rating = programme.Rating?.Value?.FirstOrDefault() ?? "";
-                var subtitled = programme.Subtitles?.FirstOrDefault(s => s.Type == "teletext")?.Type ?? "";
-
-                if (subtitled == "teletext")
-                    subtitled = "CC";
+                var subtitled = (programme.Subtitles?.Any(s => s.Type == "teletext") ?? false) ? "CC" : "";
 
                 queue.Enqueue((programme.SourceName, title, category, description, year, rating, subtitled,
                     DateTime.ParseExact(programme.Start, "yyyyMMddHHmmss zzz", DateTimeFormatInfo.CurrentInfo,
@@ -507,7 +502,7 @@ IEnumerable<string> CalculateLineWidths(string targetString, int defaultLineWidt
     return renderedLines;
 }
 
-int GenerateTargetHeight() => windowHeight - (standardRowHeight * rowsVisible) - 41;
+int GenerateTargetHeight() => windowHeight - (standardRowHeight * currentRowsVisible) - 41;
 
 void SetWindowParameters()
 {
@@ -561,26 +556,15 @@ void Setup()
     openedTtfFont = TTF_OpenFont(selectedFont.Filename, selectedFont.PointSize * scale);
     fontSizeManager = new FontSizeManager(openedTtfFont);
 
-    var smoothing = scale == 2 ? "_smooth" : string.Empty;
+    var smoothing = (scale >= 2 && preferSmoothTextures) ? "_smooth" : string.Empty;
     var size = $"{scale}x{smoothing}";
 
-    // Load all the assets into the texture manager.
-    staticTextureManager = new TextureManager(logger, size);
+    guideEngine = new GuideEngine(renderer, logger, size);
+    guideEngine.LoadStaticTextures("assets/images");
 
-    var imageAssetDirectories = Directory.GetDirectories("assets/images");
-    foreach (var imageAssetDirectory in imageAssetDirectories)
-    {
-        var assetSize = Path.GetFileName(imageAssetDirectory);
-        foreach (var assetFile in Directory.GetFiles(imageAssetDirectory))
-        {
-            var noExtension = Path.GetFileNameWithoutExtension(assetFile);
-            staticTextureManager.Insert(noExtension, assetSize, new Texture(logger, renderer, assetFile));
-        }
-    }
-
-    timeboxFrameTexture = staticTextureManager["timebox_frame"];
-    timeboxLastFrameTexture = staticTextureManager["timebox_last_frame"];
-    channelFrameTexture = staticTextureManager["channel_frame"];
+    timeboxFrameTexture = guideEngine.RetrieveTexture("timebox_frame");
+    timeboxLastFrameTexture = guideEngine.RetrieveTexture("timebox_last_frame");
+    channelFrameTexture = guideEngine.RetrieveTexture("channel_frame");
 
     timeboxFrameOneTime = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont,
     nowBlock.ToString("h:mm tt"), gridTextYellow, scale));
@@ -589,12 +573,12 @@ void Setup()
     timeboxFrameThreeTime = new Texture(Generators.GenerateDropShadowText(renderer, openedTtfFont,
         nowBlock.AddMinutes(60).ToString("h:mm tt"), gridTextYellow, scale));
 
-    clockFrameTexture = new Texture(Generators.GenerateFrame(staticTextureManager, renderer, 144, 34, clockBackgroundColor, scale));
-    columnOneOrTwo = new Texture(Generators.GenerateFrame(staticTextureManager, renderer, firstColumnWidth, standardRowHeight, gridDefaultBlue, scale));
-    columnThree = new Texture(Generators.GenerateFrame(staticTextureManager, renderer, thirdColumnWidth, standardRowHeight, gridDefaultBlue, scale));
-    columnOneAndTwo = new Texture(Generators.GenerateFrame(staticTextureManager, renderer, firstColumnWidth * 2, standardRowHeight, gridDefaultBlue, scale));
-    columnTwoAndThree = new Texture(Generators.GenerateFrame(staticTextureManager, renderer, firstColumnWidth + thirdColumnWidth, standardRowHeight, gridDefaultBlue, scale));
-    columnOneTwoAndThree = new Texture(Generators.GenerateFrame(staticTextureManager, renderer, (firstColumnWidth * 2) + thirdColumnWidth, standardRowHeight, gridDefaultBlue, scale));
+    clockFrameTexture = new Texture(Generators.GenerateFrame(guideEngine.GetTextureManager(), renderer, 144, 34, clockBackgroundColor, scale));
+    columnOneOrTwo = new Texture(Generators.GenerateFrame(guideEngine.GetTextureManager(), renderer, firstColumnWidth, standardRowHeight, gridDefaultBlue, scale));
+    columnThree = new Texture(Generators.GenerateFrame(guideEngine.GetTextureManager(), renderer, thirdColumnWidth, standardRowHeight, gridDefaultBlue, scale));
+    columnOneAndTwo = new Texture(Generators.GenerateFrame(guideEngine.GetTextureManager(), renderer, firstColumnWidth * 2, standardRowHeight, gridDefaultBlue, scale));
+    columnTwoAndThree = new Texture(Generators.GenerateFrame(guideEngine.GetTextureManager(), renderer, firstColumnWidth + thirdColumnWidth, standardRowHeight, gridDefaultBlue, scale));
+    columnOneTwoAndThree = new Texture(Generators.GenerateFrame(guideEngine.GetTextureManager(), renderer, (firstColumnWidth * 2) + thirdColumnWidth, standardRowHeight, gridDefaultBlue, scale));
 }
 
 // Checks to see if there are any events to be processed.
@@ -657,54 +641,54 @@ void PollEvents()
                 case SDL_Keycode.SDLK_1:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 1;
+                    currentRowsVisible = 1;
                     break;
                 case SDL_Keycode.SDLK_2:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 2;
+                    currentRowsVisible = 2;
                     break;
                 case SDL_Keycode.SDLK_3:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 3;
+                    currentRowsVisible = 3;
                     break;
                 case SDL_Keycode.SDLK_4:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 4;
+                    currentRowsVisible = 4;
                     break;
                 case SDL_Keycode.SDLK_5:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 5;
+                    currentRowsVisible = 5;
                     break;
                 case SDL_Keycode.SDLK_6:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 6;
+                    currentRowsVisible = 6;
                     break;
                 case SDL_Keycode.SDLK_7:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 7;
+                    currentRowsVisible = 7;
                     break;
                 case SDL_Keycode.SDLK_8:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 8;
+                    currentRowsVisible = 8;
                     break;
                 case SDL_Keycode.SDLK_9:
                     fullscreen = false;
                     recalculateRowPositions = true;
-                    rowsVisible = 9;
+                    currentRowsVisible = 9;
                     break;
                 case SDL_Keycode.SDLK_UP:
                     recalculateRowPositions = true;
                     if (fullscreen)
                         fullscreen = false;
                     else
-                        rowsVisible++;
+                        currentRowsVisible++;
                     break;
                 case SDL_Keycode.SDLK_DOWN:
                     recalculateRowPositions = true;
@@ -712,10 +696,11 @@ void PollEvents()
                         fullscreen = false;
                     else
                     {
-                        rowsVisible--;
-                        if (rowsVisible < 1)
-                            rowsVisible = 1;
+                        currentRowsVisible--;
+                        if (currentRowsVisible < 1)
+                            currentRowsVisible = 1;
                     }
+
                     break;
             }
         }
@@ -871,7 +856,7 @@ IntPtr GenerateGridTexture()
                                 ? Constants.GuideDoubleArrowLeft
                                 : Constants.GuideSingleArrowLeft;
 
-                            var arrow = staticTextureManager[arrowKey];
+                            var arrow = guideEngine.RetrieveTexture(arrowKey);
 
                             _ = SDL_QueryTexture(arrow.SdlTexture, out _, out _, out var arrowWidth,
                                 out var arrowHeight);
@@ -892,7 +877,7 @@ IntPtr GenerateGridTexture()
                                 ? Constants.GuideDoubleArrowRight
                                 : Constants.GuideSingleArrowRight;
 
-                            var arrow = staticTextureManager[arrowKey];
+                            var arrow = guideEngine.RetrieveTexture(arrowKey);
 
                             _ = SDL_QueryTexture(arrow.SdlTexture, out _, out _, out var arrowWidth,
                                 out var arrowHeight);
@@ -1083,7 +1068,7 @@ void CleanUp()
     timeboxFrameTexture?.Dispose();
     timeboxLastFrameTexture?.Dispose();
 
-    staticTextureManager.Dispose();
+    guideEngine.Dispose();
 
     foreach (var k in listingTextTextureMap.Keys)
     {
