@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="DearImguiSharp" Version="1.88.2" />
       <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
       <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
       <PackageReference Include="Sayers.SDL2.Core" Version="1.0.11" />
@@ -252,6 +253,11 @@
       <None Update="assets\fonts\PrevueGrid-Pixelated.ttf">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+
+      <Content Include="deps\CppSharp.Runtime.dll">
+        <Pack>true</Pack>
+        <PackagePath>lib/$(TargetFramework)</PackagePath>
+      </Content>
     </ItemGroup>
 
     <ItemGroup>
@@ -264,5 +270,27 @@
     <ItemGroup>
       <Folder Include="assets\images\1x" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="deps\cimgui\osx-x64\cimgui.dylib">
+        <PackagePath>runtimes/osx-x64/native</PackagePath>
+        <Pack>true</Pack>
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="CppSharp.Runtime">
+      <HintPath>deps\CppSharp.Runtime.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyBinaries" AfterTargets="Build">
+    <ItemGroup>
+      <DataFiles Include="$(ProjectDir)\deps\cimgui\osx-x64\cimgui.dylib" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(DataFiles)" DestinationFiles="$(TargetDir)\cimgui.dylib" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

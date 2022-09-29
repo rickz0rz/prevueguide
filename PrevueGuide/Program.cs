@@ -1,5 +1,4 @@
-﻿
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -12,6 +11,7 @@ using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Wrappers;
 using PrevueGuide.Core.Utilities;
 using XmlTv.Model;
+using DearImguiSharp;
 using static SDL2.SDL;
 using static SDL2.SDL_image;
 using static SDL2.SDL_ttf;
@@ -88,6 +88,9 @@ var regenerateGridTextures = false;
 var channelsAdded = 0;
 var currentRowsVisible = defaultRowsVisible;
 var fullscreen = false;
+
+// var show_demo_window = true;
+var show_channel_configuration_window = false;
 
 // Set this to the beginning of computer time so we can force it to update.
 var currentTimeToDisplay = DateTime.UnixEpoch;
@@ -532,7 +535,7 @@ void Setup()
         SDL_WINDOWPOS_UNDEFINED,
         windowWidth,
         windowHeight,
-        SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI /* | SDL_WindowFlags.SDL_WINDOW_RESIZABLE */ );
+        SDL_WindowFlags.SDL_WINDOW_SHOWN /* | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI | SDL_WindowFlags.SDL_WINDOW_RESIZABLE */ );
 
     SetWindowParameters();
 
@@ -552,6 +555,16 @@ void Setup()
     }
 
     _ = SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode.SDL_BLENDMODE_BLEND);
+
+    var (sdlWindow, sdlRenderer) = ImGuiExtras.ConvertObjects(window, renderer);
+
+    var imGuiContext = ImGui.CreateContext(null);
+    var imGuiIo = ImGui.GetIO();
+
+    ImGui.StyleColorsDark(null);
+
+    ImGui.ImGuiImplSDL2InitForSDLRenderer(sdlWindow, sdlRenderer);
+    ImGuiExtras.ImGuiImplSDLRendererInit(sdlRenderer);
 
     openedTtfFont = TTF_OpenFont(selectedFont.Filename, selectedFont.PointSize * scale);
     fontSizeManager = new FontSizeManager(openedTtfFont);
@@ -593,6 +606,11 @@ void PollEvents()
     // Check to see if there are any events and continue to do so until the queue is empty.
     while (SDL_PollEvent(out var sdlEvent) == 1)
     {
+        IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(sdlEvent));
+        Marshal.StructureToPtr(sdlEvent, ptr, false);
+        var ce = ImGuiExtras.ConvertEvent(ptr);
+        ImGui.ImGuiImplSDL2ProcessEvent(ce);
+
         if (sdlEvent.type == SDL_EventType.SDL_QUIT)
             running = false;
         else if (sdlEvent.type == SDL_EventType.SDL_WINDOWEVENT)
@@ -625,6 +643,9 @@ void PollEvents()
         {
             switch (sdlEvent.key.keysym.sym)
             {
+                case SDL_Keycode.SDLK_c:
+                    show_channel_configuration_window = true;
+                    break;
                 case SDL_Keycode.SDLK_f:
                     showFrameRate = !showFrameRate;
                     break;
@@ -992,6 +1013,13 @@ IntPtr GenerateGridTexture()
 // Renders to the window.
 void Render()
 {
+    if (show_channel_configuration_window)
+    {
+        ImGuiExtras.ImGuiImplSDLRendererNewFrame();
+        ImGui.ImGuiImplSDL2NewFrame();
+        ImGui.NewFrame();
+    }
+
     if (regenerateGridTextures)
     {
         regenerateGridTextures = false;
@@ -1033,7 +1061,29 @@ void Render()
         SDL_DestroyTexture(fpsTexture);
     }
 
+    /*if (show_channel_configuration_window)
+    {
+        ImGui.ShowDemoWindow(ref show_channel_configuration_window);
+    }*/
+
+    if (show_channel_configuration_window)
+    {
+        // ImGui::Begin("Dear ImGui Demo", p_open, window_flags)
+        ImGui.Begin("Prevue Guide", ref show_channel_configuration_window, 0);
+        //ImGui::Text("dear imgui says hello! (%s) (%d)", IMGUI_VERSION, IMGUI_VERSION_NUM);
+        ImGui.Text("Configure your guide here.");
+        //ImGui::Spacing();
+        ImGui.Spacing();
+        ImGui.End();
+    }
+
     // Switches out the currently presented render surface with the one we just did work on.
+    if (show_channel_configuration_window)
+    {
+        ImGui.Render();
+        using var drawData = ImGui.GetDrawData();
+        ImGuiExtras.ImGuiImplSDLRendererRenderDrawData(drawData);
+    }
     SDL_RenderPresent(renderer);
 
     frameDelayStopWatch.Stop();

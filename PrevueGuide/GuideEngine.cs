@@ -10,12 +10,17 @@ public class GuideEngine : IDisposable
     private IntPtr _renderer;
     private ILogger _logger;
     private TextureManager _staticTextureManager;
+    private TextureManager _dynamicTextureManager;
 
     public GuideEngine(IntPtr renderer, ILogger logger, string preferredSize)
     {
         _renderer = renderer;
         _logger = logger;
         _staticTextureManager = new TextureManager(_logger, preferredSize);
+
+        // Create guide cells for rows just before they're needed
+        // Monitor their utilization, if they are outside the visible scope then remove them
+        _dynamicTextureManager = new TextureManager(_logger, preferredSize);
     }
 
     public void LoadStaticTextures(string directory)
