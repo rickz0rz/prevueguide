@@ -17,7 +17,9 @@ concept so the code is pretty messy in some areas, the comments may not make muc
 ## Notes
 This uses the [PrevueGrid font](https://ariweinstein.com/prevue/viewtopic.php?t=449) from @RudyValencia
 
-This also uses [Dear Imgui Sharp](https://github.com/Sewer56/DearImguiSharp) which builds upon cimgui and Dear Imgui. It references a specific version of CppSharp.Runtime that's embedded, as well as requires a special build of cimgui that exposes the SDL renderer implementaiton, which is included for osx-x64. Building instructions for this were:
-- Clone https://github.com/rickz0rz/cimgui
-- Compile `backend_test/example_sdl_sdlrenderer` (`cmake . && make`)
+This also uses [Dear Imgui Sharp](https://github.com/Sewer56/DearImguiSharp) which builds upon [cimgui](https://github.com/cimgui/cimgui) and [Dear Imgui](https://github.com/ocornut/imgui). It references a specific version of [CppSharp.Runtime](https://github.com/Sewer56/DearImguiSharp/blob/master/DearImguiSharp/deps/CppSharp.Runtime.dll) that is different than the version available in NuGet, so be sure to grab that file and place it in `deps` if you're manually creating the dependencies.
+
+As well, it requires a special build of cimgui that exposes the SDL renderer implementaiton, which is included for osx-x64. Building instructions for this were:
+- Clone https://github.com/rickz0rz/cimgui following the instructions in `README.md`
+- Compile `backend_test/example_sdl_sdlrenderer` (`cd backend_test/example_sdl_sdlrenderer && cmake . && make`)
 - Copy the resultant dylib file into this project as `cimgui.dylib` in the appropriate folder in `deps`
