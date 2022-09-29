@@ -6,6 +6,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows>
+        <IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+        <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
     </PropertyGroup>
 
     <ItemGroup>
@@ -285,12 +288,11 @@
     </Reference>
   </ItemGroup>
 
-  <Target Name="CopyBinaries" AfterTargets="Build">
+  <Target Name="CopyBinaries" AfterTargets="Build" Condition="'$(IsOSX)'=='true'">
     <ItemGroup>
-      <DataFiles Include="$(ProjectDir)\deps\cimgui\osx-x64\cimgui.dylib" />
+      <OsxX64DataFiles Include="$(ProjectDir)\deps\cimgui\osx-x64\cimgui.dylib" />
     </ItemGroup>
-
-    <Copy SourceFiles="@(DataFiles)" DestinationFiles="$(TargetDir)\cimgui.dylib" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(OsxX64DataFiles)" DestinationFiles="$(TargetDir)\cimgui.dylib" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
