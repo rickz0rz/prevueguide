@@ -85,7 +85,8 @@ var frameTimeList = new List<long>();
 
 var reloadGuideData = true;
 var regenerateGridTextures = false;
-var channelsToRender = 10;
+const int maximumChannelsToRender = 10;
+var channelsToRender = maximumChannelsToRender;
 var channelsAdded = 0;
 
 var rowsVisible = 3;
@@ -171,8 +172,7 @@ async Task ReloadGuideData()
             channelLineUp.Count,
             channelLineUpStopwatch.ElapsedMilliseconds);
 
-        // hack
-        channelsToRender = new[] { channelLineUp.Count, channelsToRender }.Min();
+        channelsToRender = new[] { channelLineUp.Count, maximumChannelsToRender }.Min();
 
         var channelListingsStopwatch = Stopwatch.StartNew();
         var listings = await data.GetChannelListings(nowBlock, nowBlockEnd);
