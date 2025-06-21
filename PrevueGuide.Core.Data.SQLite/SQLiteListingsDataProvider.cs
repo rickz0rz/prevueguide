@@ -4,7 +4,7 @@ using PrevueGuide.Core.Model;
 
 namespace PrevueGuide.Core.Data.SQLite;
 
-public class SQLiteListingsData : IListingsData
+public class SQLiteListingsDataProvider : IListingsDataProvider
 {
     // TODO: Store ratings, closed captioning, stereo...
     private const string ChannelLineupTableName = "ChannelLineUp";
@@ -62,7 +62,7 @@ public class SQLiteListingsData : IListingsData
         _ = command.ExecuteNonQuery();
     }
 
-    public SQLiteListingsData(ILogger logger, string filename)
+    public SQLiteListingsDataProvider(ILogger logger, string filename)
     {
         // Make sure our tables exist.
         _sqLiteConnection = new SQLiteConnection($"Data Source={filename};Version=3;New=True;Compress=True;");

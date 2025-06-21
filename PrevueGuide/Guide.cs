@@ -10,9 +10,6 @@ using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Wrappers;
 using PrevueGuide.Core.Utilities;
 using PrevueGuide.Model;
-using static SDL2.SDL;
-using static SDL2.SDL_image;
-using static SDL2.SDL_ttf;
 using XmlTv.Model;
 
 namespace PrevueGuide;
@@ -65,7 +62,8 @@ public class Guide
     private DateTime _nowBlock;
     private DateTime _nowBlockEnd;
 
-    private readonly Core.Data.SQLite.SQLiteListingsData _data;
+    // private readonly Core.Data.SQLite.SQLiteListingsDataProvider _dataProvider;
+    private readonly Core.Data.LocalMemory.LocalMemoryListingsDataProvider _dataProvider;
     private readonly List<LineUpEntry> _channelLineUp = new();
     private readonly List<Listing> _channelListings = new();
 
@@ -95,11 +93,11 @@ public class Guide
     private bool _showFrameRate = false;
     private bool _limitFps = false;
 
-    private readonly SDL_Color _gridTextYellow = new() { a = 255, r = 203, g = 209, b = 0 };
-    private readonly SDL_Color _gridTextWhite = new() { a = 255, r = 170, g = 170, b = 170 };
-    private readonly SDL_Color _clockBackgroundColor = new() { a = 255, r = 34, g = 41, b = 141 };
-    private readonly SDL_Color _gridDefaultBlue = new() { a = 255, r = 3, g = 0, b = 88 };
-    // gridTestRed = { a = 255, r = 192, g = 0, b = 0 };
+    private readonly SDL3.SDL.Color _gridTextYellow = new() { A = 255, R = 203, G = 209, B = 0 };
+    private readonly SDL3.SDL.Color _gridTextWhite = new() { A = 255, R = 170, G = 170, B = 170 };
+    private readonly SDL3.SDL.Color _clockBackgroundColor = new() { A = 255, R = 34, G = 41, B = 141 };
+    private readonly SDL3.SDL.Color _gridDefaultBlue = new() { A = 255, R = 3, G = 0, B = 88 };
+    // gridTestRed = { A = 255, R = 192, G = 0, B = 0 };
 
     private bool _recalculateRowPositions = true;
     private int _gridTarget = 0;
@@ -109,7 +107,8 @@ public class Guide
     public Guide(ILogger logger)
     {
         _logger = logger;
-        _data = new Core.Data.SQLite.SQLiteListingsData(_logger, DatabaseFilename);
+        // _dataProvider = new Core.Data.SQLite.SQLiteListingsDataProvider(_logger, DatabaseFilename);
+        _dataProvider = new Core.Data.LocalMemory.LocalMemoryListingsDataProvider();
 
         var fontConfigurationMap =
             JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(File.ReadAllText("assets/fonts/fonts.json"));
@@ -142,7 +141,7 @@ public class Guide
         try
         {
             var channelLineUpStopwatch = Stopwatch.StartNew();
-            var channels = await _data.GetChannelLineup();
+            var channels = await _dataProvider.GetChannelLineup();
             _channelLineUp.Clear();
             _channelLineUp.AddRange(channels);
             _logger.LogInformation("[Guide] Channel line-up loaded. {channelLineUpCount} channels found in " +
@@ -153,7 +152,7 @@ public class Guide
             _channelsToRender = new[] { _channelLineUp.Count, MaximumChannelsToRender }.Min();
 
             var channelListingsStopwatch = Stopwatch.StartNew();
-            var listings = await _data.GetChannelListings(_nowBlock, _nowBlockEnd);
+            var listings = await _dataProvider.GetChannelListings(_nowBlock, _nowBlockEnd);
             _channelListings.Clear();
             _channelListings.AddRange(listings);
 
@@ -230,7 +229,7 @@ public class Guide
                 if (frameTexture == null)
                     continue;
 
-                _ = SDL_QueryTexture(frameTexture.SdlTexture, out _, out _, out var frameWidth, out _);
+                _ = SDL3.SDL.GetTextureSize(frameTexture.SdlTexture, out var frameWidth, out _);
 
                 // hack: make all the columns align.
                 frameWidth -= (frameWidth % StandardColumnWidth);
@@ -342,7 +341,7 @@ public class Guide
             {
                 foreach (var channel in tv.Channel)
                 {
-                    await _data.AddChannelToLineup(channel.SourceName, channel.ChannelNumber, channel.CallSign);
+                    await _dataProvider.AddChannelToLineup(channel.SourceName, channel.ChannelNumber, channel.CallSign);
                     numberOfChannels++;
                 }
             }
@@ -387,7 +386,7 @@ public class Guide
                         list.Add(queue.Dequeue());
                     }
 
-                    await _data.AddChannelListing(list);
+                    await _dataProvider.AddChannelListing(list);
                 }
             }
 
@@ -405,7 +404,7 @@ public class Guide
         }
     }
 
-    private IEnumerable<string> CalculateLineWidths(string targetString, int defaultLineWidth, Dictionary<int, int> specifiedLineWidths)
+    private IEnumerable<string> CalculateLineWidths(string targetString, float defaultLineWidth, Dictionary<int, int> specifiedLineWidths)
     {
         var currentLineLength = 0;
         var currentLineNumber = 1;
@@ -490,7 +489,7 @@ public class Guide
 
     private void SetWindowParameters()
     {
-        SDL_GL_GetDrawableSize(_window, out var windowSizeW, out var windowSizeH);
+        SDL3.SDL.GetWindowSizeInPixels(_window, out var windowSizeW, out var windowSizeH);
         _logger.LogInformation($@"[Window] Drawable Size: {windowSizeW} x {windowSizeH}");
         _scale = windowSizeH / _windowHeight;
         _logger.LogInformation($@"[Window] Scale: {_scale}x");
@@ -502,42 +501,51 @@ public class Guide
     // Setup all of the SDL resources we'll need to display a window.
     private void Setup()
     {
-        if (SDL_Init(SDL_INIT_VIDEO) < 0)
+        if (!SDL3.SDL.Init(SDL3.SDL.InitFlags.Video))
         {
-            throw new Exception($"There was an issue initializing SDL. {SDL_GetError()}");
+            throw new Exception($"There was an issue initializing SDL. {SDL3.SDL.GetError()}");
         }
 
-        _ = TTF_Init();
-        _ = IMG_Init(IMG_InitFlags.IMG_INIT_PNG);
+        _ = SDL3.TTF.Init();
 
+        _window = SDL3.SDL.CreateWindow("",
+            //SDL3.SDL.WindowPosUndefined(),
+            //SDL3.SDL.WindowPosUndefined(),
+            _windowHeight,
+            _windowHeight,
+            SDL3.SDL.WindowFlags.HighPixelDensity | SDL3.SDL.WindowFlags.Resizable);
+
+            /*
         _window = SDL_CreateWindow(
             "",
             SDL_WINDOWPOS_UNDEFINED,
             SDL_WINDOWPOS_UNDEFINED,
             _windowWidth,
             _windowHeight,
-            SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI /* | SDL_WindowFlags.SDL_WINDOW_RESIZABLE */ );
+            SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI | SDL_WindowFlags.SDL_WINDOW_RESIZABLE );
+        */
 
         SetWindowParameters();
 
         if (_window == IntPtr.Zero)
         {
-            throw new Exception($"There was an issue creating the window. {SDL_GetError()}");
+            throw new Exception($"There was an issue creating the window. {SDL3.SDL.GetError()}");
         }
 
-        _renderer = SDL_CreateRenderer(
+        _renderer = SDL3.SDL.CreateRenderer(
             _window,
-            -1,
-            SDL_RendererFlags.SDL_RENDERER_ACCELERATED | SDL_RendererFlags.SDL_RENDERER_PRESENTVSYNC);
+            "");
+
+        SDL3.SDL.SetRenderVSync(_renderer, 1);
 
         if (_renderer == IntPtr.Zero)
         {
-            throw new Exception($"There was an issue creating the renderer. {SDL_GetError()}");
+            throw new Exception($"There was an issue creating the renderer. {SDL3.SDL.GetError()}");
         }
 
-        _ = SDL_SetRenderDrawBlendMode(_renderer, SDL_BlendMode.SDL_BLENDMODE_BLEND);
+        _ = SDL3.SDL.SetRenderDrawBlendMode(_renderer, SDL3.SDL.BlendMode.Blend);
 
-        _openedTtfFont = TTF_OpenFont(_selectedFont.Filename, _selectedFont.PointSize * _scale);
+        _openedTtfFont = SDL3.TTF.OpenFont(_selectedFont.Filename, _selectedFont.PointSize * _scale);
         _fontSizeManager = new FontSizeManager(_openedTtfFont);
 
         var smoothing = _scale == 2 ? "_smooth" : string.Empty;
@@ -586,106 +594,103 @@ public class Guide
         }
 
         // Check to see if there are any events and continue to do so until the queue is empty.
-        while (SDL_PollEvent(out var sdlEvent) == 1)
+        while (SDL3.SDL.PollEvent(out var sdlEvent))
         {
-            if (sdlEvent.type == SDL_EventType.SDL_QUIT)
+            if (sdlEvent.Type == (uint)SDL3.SDL.EventType.Quit)
                 _running = false;
-            else if (sdlEvent.type == SDL_EventType.SDL_WINDOWEVENT)
+            else if (sdlEvent.Type == (uint)SDL3.SDL.EventType.WindowResized)
             {
-                if (sdlEvent.window.windowEvent == SDL_WindowEventID.SDL_WINDOWEVENT_RESIZED)
-                {
-                    var resizedWindow = SDL_GetWindowFromID(sdlEvent.window.windowID);
-                    SDL_GetWindowSize(resizedWindow, out _windowWidth, out _windowHeight);
-                    SetWindowParameters();
-                }
+                var resizedWindow = SDL3.SDL.GetWindowFromID(sdlEvent.Window.WindowID);
+                SDL3.SDL.GetWindowSizeInPixels(resizedWindow, out _windowWidth, out _windowHeight);
+                SetWindowParameters();
 
                 // Interested in:
                 // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_LOST
                 // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_GAINED
                 // Would be nice to pause the renderer so it doesn't use 100% CPU when the window isn't focused
             }
-            else if (sdlEvent.type == SDL_EventType.SDL_DROPFILE)
+            else if (sdlEvent.Type == (uint)SDL3.SDL.EventType.DropFile)
             {
-                var filename = Marshal.PtrToStringAuto(sdlEvent.drop.file);
+                var filename = Marshal.PtrToStringAuto(sdlEvent.Drop.Data);
 
                 if (!File.Exists(filename))
-                    filename = Marshal.PtrToStringAnsi(sdlEvent.drop.file);
+                    filename = Marshal.PtrToStringAnsi(sdlEvent.Drop.Data);
 
                 if (File.Exists(filename))
                     Task.Run(() => ProcessXmlTvFile(filename).Wait());
                 else
                     _logger.LogWarning("Unable to locate file {filename} for import", filename);
             }
-            else if (sdlEvent.type == SDL_EventType.SDL_KEYDOWN)
+            else if (sdlEvent.Type == (uint)SDL3.SDL.EventType.KeyDown)
             {
-                switch (sdlEvent.key.keysym.sym)
+                switch (sdlEvent.Key.Key)
                 {
-                    case SDL_Keycode.SDLK_f:
+                    case SDL3.SDL.Keycode.F:
                         _showFrameRate = !_showFrameRate;
                         break;
-                    case SDL_Keycode.SDLK_l:
+                    case SDL3.SDL.Keycode.L:
                         _limitFps = !_limitFps;
                         break;
-                    case SDL_Keycode.SDLK_q:
+                    case SDL3.SDL.Keycode.Q:
                         _running = false;
                         break;
-                    case SDL_Keycode.SDLK_0:
+                    case SDL3.SDL.Keycode.Alpha0:
                         _fullscreen = true;
                         _recalculateRowPositions = true;
                         break;
-                    case SDL_Keycode.SDLK_1:
+                    case SDL3.SDL.Keycode.Alpha1:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 1;
                         break;
-                    case SDL_Keycode.SDLK_2:
+                    case SDL3.SDL.Keycode.Alpha2:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 2;
                         break;
-                    case SDL_Keycode.SDLK_3:
+                    case SDL3.SDL.Keycode.Alpha3:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 3;
                         break;
-                    case SDL_Keycode.SDLK_4:
+                    case SDL3.SDL.Keycode.Alpha4:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 4;
                         break;
-                    case SDL_Keycode.SDLK_5:
+                    case SDL3.SDL.Keycode.Alpha5:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 5;
                         break;
-                    case SDL_Keycode.SDLK_6:
+                    case SDL3.SDL.Keycode.Alpha6:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 6;
                         break;
-                    case SDL_Keycode.SDLK_7:
+                    case SDL3.SDL.Keycode.Alpha7:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 7;
                         break;
-                    case SDL_Keycode.SDLK_8:
+                    case SDL3.SDL.Keycode.Alpha8:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 8;
                         break;
-                    case SDL_Keycode.SDLK_9:
+                    case SDL3.SDL.Keycode.Alpha9:
                         _fullscreen = false;
                         _recalculateRowPositions = true;
                         _rowsVisible = 9;
                         break;
-                    case SDL_Keycode.SDLK_UP:
+                    case SDL3.SDL.Keycode.Up:
                         _recalculateRowPositions = true;
                         if (_fullscreen)
                             _fullscreen = false;
                         else
                             _rowsVisible++;
                         break;
-                    case SDL_Keycode.SDLK_DOWN:
+                    case SDL3.SDL.Keycode.Down:
                         _recalculateRowPositions = true;
                         if (_fullscreen)
                             _fullscreen = false;
@@ -741,17 +746,16 @@ public class Guide
             GenerateListingTextures();
         }
 
-        var gridTexture = SDL_CreateTexture(_renderer, SDL_PIXELFORMAT_RGBA8888,
-                       (int)SDL_TextureAccess.SDL_TEXTUREACCESS_TARGET, _windowWidth * _scale,
-                       _windowHeight * _scale);
-        _ = SDL_SetTextureBlendMode(gridTexture, SDL_BlendMode.SDL_BLENDMODE_BLEND);
+        var gridTexture = SDL3.SDL.CreateTexture(_renderer, SDL3.SDL.PixelFormat.RGBA8888,
+            SDL3.SDL.TextureAccess.Target, _windowWidth * _scale, _windowHeight * _scale);
+        _ = SDL3.SDL.SetTextureBlendMode(gridTexture, SDL3.SDL.BlendMode.Blend);
 
         // Switch to the texture for rendering.
         using (_ = new RenderingTarget(_renderer, gridTexture))
         {
             // Blank out the grid texture with blue
-            _ = SDL_SetRenderDrawColor(_renderer, 4, 0, 89, 255);
-            _ = SDL_RenderClear(_renderer);
+            _ = SDL3.SDL.SetRenderDrawColor(_renderer, 4, 0, 89, 255);
+            _ = SDL3.SDL.RenderClear(_renderer);
 
             const int frameX = 152; // Start first program column
             const int frameY = 206; // Start below frame.
@@ -775,44 +779,44 @@ public class Guide
                     if (channel != null)
                     {
                         {
-                            _ = SDL_QueryTexture(_channelFrameTexture.SdlTexture, out _, out _, out var w, out var h);
-                            var dstRect1 = new SDL_Rect
+                            _ = SDL3.SDL.GetTextureSize(_channelFrameTexture.SdlTexture, out var w, out var h);
+                            var dstRect1 = new SDL3.SDL.FRect
                             {
-                                h = h,
-                                w = w,
-                                x = 8 * _scale,
-                                y = ((frameY - testingOffset + (i * StandardRowHeight)) * _scale)
+                                H = h,
+                                W = w,
+                                X = 8 * _scale,
+                                Y = ((frameY - testingOffset + (i * StandardRowHeight)) * _scale)
                             };
-                            _ = SDL_RenderCopy(_renderer, _channelFrameTexture.SdlTexture, IntPtr.Zero, ref dstRect1);
+                            SDL3.SDL.RenderTexture(_renderer, _channelFrameTexture.SdlTexture, IntPtr.Zero, in dstRect1);
                         }
 
                         if (_listingChannelTextureMap.ContainsKey(channel.Id))
                         {
                             var channelTextures = _listingChannelTextureMap[channel.Id];
 
-                            _ = SDL_QueryTexture(channelTextures.Line1.SdlTexture, out _, out _, out var w1, out var h1);
+                            _ = SDL3.SDL.GetTextureSize(channelTextures.Line1.SdlTexture, out var w1, out var h1);
                             var wOffset1 = ((90 - (w1 / _scale) / 2) + 8);
-                            var dstRect1 = new SDL_Rect
+                            var dstRect1 = new SDL3.SDL.FRect
                             {
-                                h = h1,
-                                w = w1,
-                                x = (wOffset1 + _selectedFont.XOffset) * _scale,
-                                y = ((frameY - testingOffset + (i * StandardRowHeight) + 5 + _selectedFont.YOffset) *
+                                H = h1,
+                                W = w1,
+                                X = (wOffset1 + _selectedFont.XOffset) * _scale,
+                                Y = ((frameY - testingOffset + (i * StandardRowHeight) + 5 + _selectedFont.YOffset) *
                                      _scale)
                             };
-                            _ = SDL_RenderCopy(_renderer, channelTextures.Line1.SdlTexture, IntPtr.Zero, ref dstRect1);
+                            _ = SDL3.SDL.RenderTexture(_renderer, channelTextures.Line1.SdlTexture, IntPtr.Zero, in dstRect1);
 
-                            _ = SDL_QueryTexture(channelTextures.Line2.SdlTexture, out _, out _, out var w2, out var h2);
+                            _ = SDL3.SDL.GetTextureSize(channelTextures.Line2.SdlTexture, out var w2, out var h2);
                             var wOffset2 = ((90 - (w2 / _scale) / 2) + 8);
-                            var dstRect2 = new SDL_Rect
+                            var dstRect2 = new SDL3.SDL.FRect
                             {
-                                h = h2,
-                                w = w2,
-                                x = (wOffset2 + _selectedFont.XOffset) * _scale,
-                                y = ((frameY - testingOffset + (i * StandardRowHeight) + 29 + _selectedFont.YOffset) *
+                                H = h2,
+                                W = w2,
+                                X = (wOffset2 + _selectedFont.XOffset) * _scale,
+                                Y = ((frameY - testingOffset + (i * StandardRowHeight) + 29 + _selectedFont.YOffset) *
                                      _scale)
                             };
-                            _ = SDL_RenderCopy(_renderer, channelTextures.Line2.SdlTexture, IntPtr.Zero, ref dstRect2);
+                            _ = SDL3.SDL.RenderTexture(_renderer, channelTextures.Line2.SdlTexture, IntPtr.Zero, in dstRect2);
                         }
                     }
                 }
@@ -835,15 +839,15 @@ public class Guide
                             var textLine1 = listing.Line1;
                             var textLine2 = listing.Line2;
 
-                            _ = SDL_QueryTexture(frameTexture.SdlTexture, out _, out _, out var bfWidth, out var bfHeight);
-                            var bfDstRect = new SDL_Rect
+                            _ = SDL3.SDL.GetTextureSize(frameTexture.SdlTexture, out var bfWidth, out var bfHeight);
+                            var bfDstRect = new SDL3.SDL.FRect
                             {
-                                h = bfHeight, w = bfWidth, x = (frameX + listing.ColumnInfo.ColumnOffset) * _scale,
-                                y = ((frameY - testingOffset + (i * StandardRowHeight)) * _scale)
+                                H = bfHeight, W = bfWidth, X = (frameX + listing.ColumnInfo.ColumnOffset) * _scale,
+                                Y = ((frameY - testingOffset + (i * StandardRowHeight)) * _scale)
                             };
-                            _ = SDL_RenderCopy(_renderer, frameTexture.SdlTexture, IntPtr.Zero, ref bfDstRect);
+                            _ = SDL3.SDL.RenderTexture(_renderer, frameTexture.SdlTexture, IntPtr.Zero, in bfDstRect);
 
-                            var textLeftMargin = 0;
+                            var textLeftMargin = 0f;
 
                             if (listing.StartTime < _nowBlock)
                             {
@@ -853,15 +857,15 @@ public class Guide
 
                                 var arrow = _staticTextureManager[arrowKey];
 
-                                _ = SDL_QueryTexture(arrow.SdlTexture, out _, out _, out var arrowWidth,
+                                _ = SDL3.SDL.GetTextureSize(arrow.SdlTexture, out var arrowWidth,
                                     out var arrowHeight);
-                                var arrowDstRect = new SDL_Rect
+                                var arrowDstRect = new SDL3.SDL.FRect
                                 {
-                                    h = arrowHeight, w = arrowWidth,
-                                    x = (frameX + 5 + listing.ColumnInfo.ColumnOffset) * _scale,
-                                    y = (frameY + 5 - testingOffset + (i * StandardRowHeight)) * _scale
+                                    H = arrowHeight, W = arrowWidth,
+                                    X = (frameX + 5 + listing.ColumnInfo.ColumnOffset) * _scale,
+                                    Y = (frameY + 5 - testingOffset + (i * StandardRowHeight)) * _scale
                                 };
-                                _ = SDL_RenderCopy(_renderer, arrow.SdlTexture, IntPtr.Zero, ref arrowDstRect);
+                                _ = SDL3.SDL.RenderTexture(_renderer, arrow.SdlTexture, IntPtr.Zero, in arrowDstRect);
 
                                 textLeftMargin = (arrowWidth / _scale);
                             }
@@ -874,94 +878,94 @@ public class Guide
 
                                 var arrow = _staticTextureManager[arrowKey];
 
-                                _ = SDL_QueryTexture(arrow.SdlTexture, out _, out _, out var arrowWidth,
+                                _ = SDL3.SDL.GetTextureSize(arrow.SdlTexture, out var arrowWidth,
                                     out var arrowHeight);
-                                var arrowDstRect = new SDL_Rect
+                                var arrowDstRect = new SDL3.SDL.FRect
                                 {
-                                    h = arrowHeight, w = arrowWidth,
-                                    x = (frameX + 525) *
+                                    H = arrowHeight, W = arrowWidth,
+                                    X = (frameX + 525) *
                                         _scale, // Calculate this from the frame width? I think I did the math wrong initially.
-                                    y = (frameY + 5 - testingOffset + (i * StandardRowHeight)) * _scale
+                                    Y = (frameY + 5 - testingOffset + (i * StandardRowHeight)) * _scale
                                 };
-                                _ = SDL_RenderCopy(_renderer, arrow.SdlTexture, IntPtr.Zero, ref arrowDstRect);
+                                _ = SDL3.SDL.RenderTexture(_renderer, arrow.SdlTexture, IntPtr.Zero, in arrowDstRect);
                             }
 
-                            _ = SDL_QueryTexture(textLine1.SdlTexture, out _, out _, out var bftWidth, out var bftHeight);
-                            var bftDstRect = new SDL_Rect
+                            _ = SDL3.SDL.GetTextureSize(textLine1.SdlTexture, out var bftWidth, out var bftHeight);
+                            var bftDstRect = new SDL3.SDL.FRect
                             {
-                                h = bftHeight,
-                                w = bftWidth,
-                                x = (frameX + 5 + textLeftMargin + _selectedFont.XOffset + listing.ColumnInfo.ColumnOffset) *
+                                H = bftHeight,
+                                W = bftWidth,
+                                X = (frameX + 5 + textLeftMargin + _selectedFont.XOffset + listing.ColumnInfo.ColumnOffset) *
                                     _scale,
-                                y = (frameY + 5 - testingOffset + (i * StandardRowHeight) + _selectedFont.YOffset) * _scale
+                                Y = (frameY + 5 - testingOffset + (i * StandardRowHeight) + _selectedFont.YOffset) * _scale
                             };
-                            _ = SDL_RenderCopy(_renderer, textLine1.SdlTexture, IntPtr.Zero, ref bftDstRect);
+                            _ = SDL3.SDL.RenderTexture(_renderer, textLine1.SdlTexture, IntPtr.Zero, in bftDstRect);
 
-                            _ = SDL_QueryTexture(textLine2.SdlTexture, out _, out _, out var bftWidth2, out var bftHeight2);
-                            var bftDstRect2 = new SDL_Rect
+                            _ = SDL3.SDL.GetTextureSize(textLine2.SdlTexture, out var bftWidth2, out var bftHeight2);
+                            var bftDstRect2 = new SDL3.SDL.FRect
                             {
-                                h = bftHeight2, w = bftWidth2,
-                                x = (frameX + 5 + textLeftMargin + _selectedFont.XOffset + listing.ColumnInfo.ColumnOffset) *
+                                H = bftHeight2, W = bftWidth2,
+                                X = (frameX + 5 + textLeftMargin + _selectedFont.XOffset + listing.ColumnInfo.ColumnOffset) *
                                     _scale,
-                                y = (frameY + 5 + 24 - testingOffset + (i * StandardRowHeight) + _selectedFont.YOffset) *
+                                Y = (frameY + 5 + 24 - testingOffset + (i * StandardRowHeight) + _selectedFont.YOffset) *
                                     _scale
                             };
-                            _ = SDL_RenderCopy(_renderer, textLine2.SdlTexture, IntPtr.Zero, ref bftDstRect2);
+                            _ = SDL3.SDL.RenderTexture(_renderer, textLine2.SdlTexture, IntPtr.Zero, in bftDstRect2);
                         }
                     }
                 }
             }
 
             // Draw the clock frame.
-            _ = SDL_QueryTexture(_clockFrameTexture.SdlTexture, out _, out _, out var clockFrameWidth, out var clockFrameHeight);
-            var clockFrameDstRect = new SDL_Rect { h = clockFrameHeight, w = clockFrameWidth, x = 8 * _scale, y = 0 };
-            _ = SDL_RenderCopy(_renderer, _clockFrameTexture.SdlTexture, IntPtr.Zero, ref clockFrameDstRect);
+            _ = SDL3.SDL.GetTextureSize(_clockFrameTexture.SdlTexture, out var clockFrameWidth, out var clockFrameHeight);
+            var clockFrameDstRect = new SDL3.SDL.FRect { H = clockFrameHeight, W = clockFrameWidth, X = 8 * _scale, Y = 0 };
+            _ = SDL3.SDL.RenderTexture(_renderer, _clockFrameTexture.SdlTexture, IntPtr.Zero, in clockFrameDstRect);
 
             // First two time boxes.
             {
-                _ = SDL_QueryTexture(_timeboxFrameTexture.SdlTexture, out uint _, out int _, out int tbw, out int tbh);
-                var timeFrameRect1 = new SDL_Rect { h = tbh, w = tbw, x = 152 * _scale, y = 0 };
-                _ = SDL_RenderCopy(_renderer, _timeboxFrameTexture.SdlTexture, IntPtr.Zero, ref timeFrameRect1);
-                var timeFrameRect2 = new SDL_Rect { h = tbh, w = tbw, x = 324 * _scale, y = 0 };
-                _ = SDL_RenderCopy(_renderer, _timeboxFrameTexture.SdlTexture, IntPtr.Zero, ref timeFrameRect2);
+                _ = SDL3.SDL.GetTextureSize(_timeboxFrameTexture.SdlTexture, out var tbw, out var tbh);
+                var timeFrameRect1 = new SDL3.SDL.FRect { H = tbh, W = tbw, X = 152 * _scale, Y = 0 };
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeboxFrameTexture.SdlTexture, IntPtr.Zero, in timeFrameRect1);
+                var timeFrameRect2 = new SDL3.SDL.FRect { H = tbh, W = tbw, X = 324 * _scale, Y = 0 };
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeboxFrameTexture.SdlTexture, IntPtr.Zero, in timeFrameRect2);
 
                 // Last one.
-                _ = SDL_QueryTexture(_timeboxLastFrameTexture.SdlTexture, out _, out _, out var tblw, out var tblh);
-                var timeFrameRect3 = new SDL_Rect { h = tblh, w = tblw, x = 496 * _scale, y = 0 };
-                _ = SDL_RenderCopy(_renderer, _timeboxLastFrameTexture.SdlTexture, IntPtr.Zero, ref timeFrameRect3);
+                _ = SDL3.SDL.GetTextureSize(_timeboxLastFrameTexture.SdlTexture, out var tblw, out var tblh);
+                var timeFrameRect3 = new SDL3.SDL.FRect { H = tblh, W = tblw, X = 496 * _scale, Y = 0 };
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeboxLastFrameTexture.SdlTexture, IntPtr.Zero, in timeFrameRect3);
             }
 
             // Times.
             {
-                _ = SDL_QueryTexture(_timeboxFrameOneTime.SdlTexture, out uint _, out int _, out int tw1, out int th1);
-                var timeRect1 = new SDL_Rect
+                _ = SDL3.SDL.GetTextureSize(_timeboxFrameOneTime.SdlTexture, out var tw1, out var th1);
+                var timeRect1 = new SDL3.SDL.FRect
                 {
-                    h = th1,
-                    w = tw1,
-                    x = (192 + _selectedFont.XOffset) * _scale,
-                    y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
+                    H = th1,
+                    W = tw1,
+                    X = (192 + _selectedFont.XOffset) * _scale,
+                    Y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
                 };
-                _ = SDL_RenderCopy(_renderer, _timeboxFrameOneTime.SdlTexture, IntPtr.Zero, ref timeRect1);
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeboxFrameOneTime.SdlTexture, IntPtr.Zero, in timeRect1);
 
-                _ = SDL_QueryTexture(_timeboxFrameTwoTime.SdlTexture, out uint _, out int _, out int tw2, out int th2);
-                var timeRect2 = new SDL_Rect
+                _ = SDL3.SDL.GetTextureSize(_timeboxFrameTwoTime.SdlTexture, out var tw2, out var th2);
+                var timeRect2 = new SDL3.SDL.FRect
                 {
-                    h = th2,
-                    w = tw2,
-                    x = (364 + _selectedFont.XOffset) * _scale,
-                    y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
+                    H = th2,
+                    W = tw2,
+                    X = (364 + _selectedFont.XOffset) * _scale,
+                    Y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
                 };
-                _ = SDL_RenderCopy(_renderer, _timeboxFrameTwoTime.SdlTexture, IntPtr.Zero, ref timeRect2);
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeboxFrameTwoTime.SdlTexture, IntPtr.Zero, in timeRect2);
 
-                _ = SDL_QueryTexture(_timeboxFrameThreeTime.SdlTexture, out uint _, out int _, out int tw3, out int th3);
-                var timeRect3 = new SDL_Rect
+                _ = SDL3.SDL.GetTextureSize(_timeboxFrameThreeTime.SdlTexture, out var tw3, out var th3);
+                var timeRect3 = new SDL3.SDL.FRect
                 {
-                    h = th3,
-                    w = tw3,
-                    x = (536 + _selectedFont.XOffset) * _scale,
-                    y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
+                    H = th3,
+                    W = tw3,
+                    X = (536 + _selectedFont.XOffset) * _scale,
+                    Y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
                 };
-                _ = SDL_RenderCopy(_renderer, _timeboxFrameThreeTime.SdlTexture, IntPtr.Zero, ref timeRect3);
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeboxFrameThreeTime.SdlTexture, IntPtr.Zero, in timeRect3);
             }
 
             if ((_now.Hour % 12) is 00 or >= 10)
@@ -969,15 +973,15 @@ public class Guide
 
             if (_timeTexture != null)
             {
-                _ = SDL_QueryTexture(_timeTexture.SdlTexture, out _, out _, out var timeWidth, out var timeHeight);
-                var timeDstRect = new SDL_Rect
+                _ = SDL3.SDL.GetTextureSize(_timeTexture.SdlTexture, out var timeWidth, out var timeHeight);
+                var timeDstRect = new SDL3.SDL.FRect
                 {
-                    h = timeHeight,
-                    w = timeWidth,
-                    x = (horizontalOffset - 1 + _selectedFont.XOffset) * _scale,
-                    y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
+                    H = timeHeight,
+                    W = timeWidth,
+                    X = (horizontalOffset - 1 + _selectedFont.XOffset) * _scale,
+                    Y = (verticalOffset - 1 + _selectedFont.YOffset) * _scale
                 };
-                _ = SDL_RenderCopy(_renderer, _timeTexture.SdlTexture, IntPtr.Zero, ref timeDstRect);
+                _ = SDL3.SDL.RenderTexture(_renderer, _timeTexture.SdlTexture, IntPtr.Zero, in timeDstRect);
             }
         }
 
@@ -996,8 +1000,8 @@ public class Guide
         var frameDrawStopWatch = Stopwatch.StartNew();
         var frameDelayStopWatch = Stopwatch.StartNew();
 
-        _ = SDL_SetRenderDrawColor(_renderer, 255, 0, 255, 255);
-        _ = SDL_RenderClear(_renderer);
+        _ = SDL3.SDL.SetRenderDrawColor(_renderer, 255, 0, 255, 255);
+        _ = SDL3.SDL.RenderClear(_renderer);
 
         // Generate the grid
         using var gridTexture = new Texture(GenerateGridTexture());
@@ -1008,9 +1012,9 @@ public class Guide
             _gridValue += 1;
 
         // Render the grid.
-        _ = SDL_QueryTexture(gridTexture.SdlTexture, out _, out _, out var gridTextureWidth, out var gridTextureHeight);
-        var gridDstRect = new SDL_Rect { h = gridTextureHeight, w = gridTextureWidth, x = 0, y = _gridValue * _scale};
-        _ = SDL_RenderCopy(_renderer, gridTexture.SdlTexture, IntPtr.Zero, ref gridDstRect);
+        _ = SDL3.SDL.GetTextureSize(gridTexture.SdlTexture, out var gridTextureWidth, out var gridTextureHeight);
+        var gridDstRect = new SDL3.SDL.FRect { H = gridTextureHeight, W = gridTextureWidth, X = 0, Y = _gridValue * _scale};
+        _ = SDL3.SDL.RenderTexture(_renderer, gridTexture.SdlTexture, IntPtr.Zero, in gridDstRect);
 
         // Draw FPS.
         if (_showFrameRate && frameTimeList.Any())
@@ -1022,14 +1026,14 @@ public class Guide
             var fpsTexture = Generators.GenerateDropShadowText(_renderer, _openedTtfFont,
                 $"FPS: {averageFps:F}", _gridTextYellow, _scale);
 
-            _ = SDL_QueryTexture(fpsTexture, out _, out _, out var fpsTextureWidth, out var fpsTextureHeight);
-            var fpsDstRect = new SDL_Rect { h = fpsTextureHeight, w = fpsTextureWidth, x = (_windowWidth - 180) * _scale, y = (6 * _scale) };
-            _ = SDL_RenderCopy(_renderer, fpsTexture, IntPtr.Zero, ref fpsDstRect);
-            SDL_DestroyTexture(fpsTexture);
+            _ = SDL3.SDL.GetTextureSize(fpsTexture, out var fpsTextureWidth, out var fpsTextureHeight);
+            var fpsDstRect = new SDL3.SDL.FRect { H = fpsTextureHeight, W = fpsTextureWidth, X = (_windowWidth - 180) * _scale, Y = (6 * _scale) };
+            _ = SDL3.SDL.RenderTexture(_renderer, fpsTexture, IntPtr.Zero, in fpsDstRect);
+            SDL3.SDL.DestroyTexture(fpsTexture);
         }
 
         // Switches out the currently presented render surface with the one we just did work on.
-        SDL_RenderPresent(_renderer);
+        SDL3.SDL.RenderPresent(_renderer);
 
         frameDelayStopWatch.Stop();
 
@@ -1040,7 +1044,7 @@ public class Guide
             var duration = (targetDuration - frameDelayStopWatch.ElapsedMilliseconds);
 
             if (duration > 0)
-                SDL_Delay((uint)duration);
+                SDL3.SDL.Delay((uint)duration);
         }
 
         frameTimeList.Add(frameDrawStopWatch.ElapsedMilliseconds);
@@ -1080,13 +1084,13 @@ public class Guide
             _listingChannelTextureMap[t].Line2?.Dispose();
         }
 
-        SDL_DestroyRenderer(_renderer);
-        SDL_DestroyWindow(_window);
+        SDL3.SDL.DestroyRenderer(_renderer);
+        SDL3.SDL.DestroyWindow(_window);
 
-        _data.Dispose();
+        _dataProvider.Dispose();
 
-        TTF_CloseFont(_openedTtfFont);
-        TTF_Quit();
-        SDL_Quit();
+        SDL3.TTF.CloseFont(_openedTtfFont);
+        SDL3.TTF.Quit();
+        SDL3.SDL.Quit();
     }
 }

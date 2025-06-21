@@ -1,14 +1,14 @@
-using SDL2;
-
 namespace PrevueGuide.Core.SDL;
 
 public class FontSizeManager
 {
-    private IntPtr _font;
+    private nint _engine;
+    private nint _font;
     private Dictionary<string, (int width, int height)> _map;
 
-    public FontSizeManager(IntPtr font)
+    public FontSizeManager(nint font)
     {
+        _engine = SDL3.TTF.CreateSurfaceTextEngine();
         _font = font;
         _map = new Dictionary<string, (int width, int height)>();
     }
@@ -21,7 +21,8 @@ public class FontSizeManager
         {
             if (!_map.ContainsKey(key))
             {
-                _ = SDL_ttf.TTF_SizeUNICODE(_font, key, out var w, out var h);
+                var text = SDL3.TTF.CreateText(_engine, _font, key, 0);
+                SDL3.TTF.GetTextSize(text, out var w, out var h);
                 _map[key] = (w, h);
             }
 

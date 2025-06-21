@@ -8,12 +8,12 @@ public class RenderingTarget : IDisposable
     public RenderingTarget(IntPtr renderer, IntPtr texture)
     {
         _renderer = renderer;
-        _previousRenderTarget = SDL2.SDL.SDL_GetRenderTarget(_renderer);
-        _ = SDL2.SDL.SDL_SetRenderTarget(_renderer, texture);
+        _previousRenderTarget = SDL3.SDL.GetRenderTarget(_renderer);
+        _ = SDL3.SDL.SetRenderTarget(_renderer, texture);
     }
 
     public void Dispose()
     {
-        _ = SDL2.SDL.SDL_SetRenderTarget(_renderer, _previousRenderTarget);
+        _ = SDL3.SDL.SetRenderTarget(_renderer, _previousRenderTarget);
     }
 }

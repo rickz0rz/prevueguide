@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.Tests", "P
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.SDL", "PrevueGuide.Core.SDL\PrevueGuide.Core.SDL.csproj", "{2868FC44-8475-4039-9720-97FA32EC247C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.Data.LocalMemory", "PrevueGuide.Core.Data.LocalMemory\PrevueGuide.Core.Data.LocalMemory.csproj", "{B35B6E4D-8702-40FC-8542-E2C89E160C67}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{2868FC44-8475-4039-9720-97FA32EC247C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2868FC44-8475-4039-9720-97FA32EC247C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2868FC44-8475-4039-9720-97FA32EC247C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

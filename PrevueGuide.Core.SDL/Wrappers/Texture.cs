@@ -13,20 +13,21 @@ public class Texture : IDisposable
 
     public Texture(ILogger logger, IntPtr renderer, string filename)
     {
-        using var surface = new Surface(SDL2.SDL_image.IMG_Load(filename));
+        using var surface = new Surface(SDL3.Image.Load(filename));
 
         if (surface.SdlSurface == IntPtr.Zero)
         {
             logger.LogError("There was an issue opening image \"{filename}\": {sdlError}",
-                filename, SDL2.SDL.SDL_GetError());
+                filename, SDL3.SDL.GetError());
         }
 
-        SdlTexture = SDL2.SDL.SDL_CreateTextureFromSurface(renderer, surface.SdlSurface);
-        _ = SDL2.SDL.SDL_SetTextureBlendMode(SdlTexture, SDL2.SDL.SDL_BlendMode.SDL_BLENDMODE_BLEND);
+        SdlTexture = SDL3.SDL.CreateTextureFromSurface(renderer, surface.SdlSurface);
+
+        _ = SDL3.SDL.SetTextureBlendMode(SdlTexture, SDL3.SDL.BlendMode.Blend);
     }
 
     public void Dispose()
     {
-        SDL2.SDL.SDL_DestroyTexture(SdlTexture);
+        SDL3.SDL.DestroyTexture(SdlTexture);
     }
 }
