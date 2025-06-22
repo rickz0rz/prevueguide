@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.Extensions.Logging;
+using PrevueGuide.Core.Data;
 using PrevueGuide.Core.Model;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Wrappers;
@@ -25,7 +26,7 @@ namespace PrevueGuide;
 //     will be rendered so long as the previous object doesn't cross over the visibility boundary
 // Object rendering happens at the beginning of each frame (on demand), if the object to render to a texture isn't
 //     already rendered and cached.
-// If an object is no longer going to be visible (passes over the top threashold of the frame) it's evicted
+// If an object is no longer going to be visible (passes over the top threshold of the frame) it's evicted
 //     from the cache.
 // Re-generate the queue whenever the timebox changes.
 // todo: press d to delete database
@@ -47,12 +48,12 @@ public class Guide
     private const int MaximumChannelsToRender = 10;
 
     private bool _reloadGuideData = true;
-    private bool _regenerateGridTextures = false;
+    private bool _regenerateGridTextures;
     private int _channelsToRender = MaximumChannelsToRender;
-    private int _channelsAdded = 0;
-    private readonly List<long> frameTimeList = new();
+    private int _channelsAdded;
+    private readonly List<long> _frameTimeList = [];
     private int _rowsVisible = 3;
-    private bool _fullscreen = false;
+    private bool _fullscreen;
     private int _windowWidth = 716;
     private int _windowHeight = 436;
 
@@ -62,8 +63,7 @@ public class Guide
     private DateTime _nowBlock;
     private DateTime _nowBlockEnd;
 
-    // private readonly Core.Data.SQLite.SQLiteListingsDataProvider _dataProvider;
-    private readonly Core.Data.LocalMemory.LocalMemoryListingsDataProvider _dataProvider;
+    private readonly IListingsDataProvider _dataProvider;
     private readonly List<LineUpEntry> _channelLineUp = new();
     private readonly List<Listing> _channelListings = new();
 
@@ -76,9 +76,8 @@ public class Guide
     private IntPtr _renderer;
     private IntPtr _openedTtfFont;
 
-    private FontSizeManager _fontSizeManager;
-    private TextureManager _staticTextureManager;
-
+    private FontSizeManager? _fontSizeManager;
+    private TextureManager? _staticTextureManager;
     private readonly FontConfiguration _selectedFont;
 
     private Texture? _timeTexture;
@@ -90,8 +89,8 @@ public class Guide
 
     private int _scale;
     private bool _running = true;
-    private bool _showFrameRate = false;
-    private bool _limitFps = false;
+    private bool _showFrameRate;
+    private bool _limitFps;
 
     private readonly SDL3.SDL.Color _gridTextYellow = new() { A = 255, R = 203, G = 209, B = 0 };
     private readonly SDL3.SDL.Color _gridTextWhite = new() { A = 255, R = 170, G = 170, B = 170 };
@@ -100,19 +99,34 @@ public class Guide
     // gridTestRed = { A = 255, R = 192, G = 0, B = 0 };
 
     private bool _recalculateRowPositions = true;
-    private int _gridTarget = 0;
-    private int _gridValue = 0;
-    private int _scrollingTest = 0;
+    private int _gridTarget;
+    private int _gridValue;
+    private int _scrollingTest;
 
     public Guide(ILogger logger)
     {
         _logger = logger;
-        // _dataProvider = new Core.Data.SQLite.SQLiteListingsDataProvider(_logger, DatabaseFilename);
-        _dataProvider = new Core.Data.LocalMemory.LocalMemoryListingsDataProvider();
+
+        try
+        {
+            _dataProvider = new Core.Data.SQLite.SQLiteListingsDataProvider(_logger, DatabaseFilename);
+        }
+        catch (Exception e)
+        {
+            logger.LogDebug(e.Message);
+            logger.LogInformation("Unable to utilize SQLite, falling back to in-memory data provider.");
+            _dataProvider = new Core.Data.LocalMemory.LocalMemoryListingsDataProvider();
+        }
 
         var fontConfigurationMap =
             JsonSerializer.Deserialize<Dictionary<string, FontConfiguration>>(File.ReadAllText("assets/fonts/fonts.json"));
-        _selectedFont = fontConfigurationMap?["PrevueGrid"];
+
+        if (fontConfigurationMap == null || !fontConfigurationMap.ContainsKey("PrevueGrid"))
+        {
+            throw new Exception("Unable to find PrevueGrid font configuration.");
+        }
+
+        _selectedFont = fontConfigurationMap["PrevueGrid"];
 
         SetBlockTimes();
     }
@@ -356,9 +370,9 @@ public class Guide
 
                 foreach (var programme in tv.Programme)
                 {
-                    var title = programme.Title.First().Text;
-                    var description = programme.Desc.FirstOrDefault()?.Text ?? "";
-                    var category = programme.Category.FirstOrDefault()?.Text ?? "";
+                    var title = programme.Title?.First().Text ?? "Missing Title";
+                    var description = programme.Desc?.FirstOrDefault()?.Text ?? "Missing Description";
+                    var category = programme.Category?.FirstOrDefault()?.Text ?? "Missing Category";
                     var year = programme.Date ?? "";
                     var rating = programme.Rating?.Value?.FirstOrDefault() ?? "";
                     var subtitled = programme.Subtitles?.FirstOrDefault(s => s.Type == "teletext")?.Type ?? "";
@@ -498,7 +512,7 @@ public class Guide
         _gridTarget = _gridValue = GenerateTargetHeight();
     }
 
-    // Setup all of the SDL resources we'll need to display a window.
+    // Setup all the SDL resources we'll need to display a window.
     private void Setup()
     {
         if (!SDL3.SDL.Init(SDL3.SDL.InitFlags.Video))
@@ -508,22 +522,10 @@ public class Guide
 
         _ = SDL3.TTF.Init();
 
-        _window = SDL3.SDL.CreateWindow("",
-            //SDL3.SDL.WindowPosUndefined(),
-            //SDL3.SDL.WindowPosUndefined(),
-            _windowHeight,
-            _windowHeight,
-            SDL3.SDL.WindowFlags.HighPixelDensity | SDL3.SDL.WindowFlags.Resizable);
-
-            /*
-        _window = SDL_CreateWindow(
-            "",
-            SDL_WINDOWPOS_UNDEFINED,
-            SDL_WINDOWPOS_UNDEFINED,
+        _window = SDL3.SDL.CreateWindow("Prevue Guide",
             _windowWidth,
             _windowHeight,
-            SDL_WindowFlags.SDL_WINDOW_SHOWN | SDL_WindowFlags.SDL_WINDOW_ALLOW_HIGHDPI | SDL_WindowFlags.SDL_WINDOW_RESIZABLE );
-        */
+            SDL3.SDL.WindowFlags.HighPixelDensity /* | SDL3.SDL.WindowFlags.Resizable */);
 
         SetWindowParameters();
 
@@ -607,7 +609,7 @@ public class Guide
                 // Interested in:
                 // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_LOST
                 // SDL_WindowEventID.SDL_WINDOWEVENT_FOCUS_GAINED
-                // Would be nice to pause the renderer so it doesn't use 100% CPU when the window isn't focused
+                // Would be nice to pause the renderer, so it doesn't use 100% CPU when the window isn't focused
             }
             else if (sdlEvent.Type == (uint)SDL3.SDL.EventType.DropFile)
             {
@@ -704,25 +706,17 @@ public class Guide
                 }
             }
 
-            if (_recalculateRowPositions)
-            {
-                if (_fullscreen)
-                {
-                    _gridTarget = 0;
-                }
-                else
-                {
-                    _gridTarget = GenerateTargetHeight();
-                }
+            if (!_recalculateRowPositions)
+                continue;
 
-                _recalculateRowPositions = false;
-            }
+            _gridTarget = _fullscreen ? 0 : GenerateTargetHeight();
+            _recalculateRowPositions = false;
         }
     }
 
     // Optimize the hell out of this.
     // - Call functions to generate rows as they're needed, and discard them when they're not.
-    //   This means keeping track of the total size of the grid and our placement in it (i.e. what's being shown)
+    //   This means keeping calculating the total size of the grid and our placement in it (i.e., what's being shown)
     // - Don't try to render everything in the channel list. Only render what's going to be visible.
     private IntPtr GenerateGridTexture()
     {
@@ -763,7 +757,7 @@ public class Guide
             var horizontalOffset = 62;
             const int verticalOffset = 7;
 
-            // Quick guess. 110 frames for a full grid push @ 112 (2x) / 56 (1x) height.
+            // Quick guess. 110 frames for a full grid push @ 112 (2x) / 56 (1x) pixels in height.
             // That means roughly 2 frames per pixel going up.
             _scrollingTest += 1;
             if (_scrollingTest >= StandardRowHeight * _channelsAdded * _scale)
@@ -1017,10 +1011,10 @@ public class Guide
         _ = SDL3.SDL.RenderTexture(_renderer, gridTexture.SdlTexture, IntPtr.Zero, in gridDstRect);
 
         // Draw FPS.
-        if (_showFrameRate && frameTimeList.Any())
+        if (_showFrameRate && _frameTimeList.Any())
         {
             // Generate average FPS.
-            var averageFrameTime = frameTimeList.Average();
+            var averageFrameTime = _frameTimeList.Average();
             var averageFps = 1000 / averageFrameTime;
 
             var fpsTexture = Generators.GenerateDropShadowText(_renderer, _openedTtfFont,
@@ -1047,11 +1041,11 @@ public class Guide
                 SDL3.SDL.Delay((uint)duration);
         }
 
-        frameTimeList.Add(frameDrawStopWatch.ElapsedMilliseconds);
+        _frameTimeList.Add(frameDrawStopWatch.ElapsedMilliseconds);
 
-        while (frameTimeList.Count > NumberOfFrameTimesToCapture)
+        while (_frameTimeList.Count > NumberOfFrameTimesToCapture)
         {
-            frameTimeList.RemoveAt(0);
+            _frameTimeList.RemoveAt(0);
         }
     }
 
