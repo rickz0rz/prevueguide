@@ -109,14 +109,15 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                             StartTime = startDateTime,
                             EndTime = endDateTime,
                             Title = airingElement.GetProperty("Title").GetString(),
-                            ChannelId = channelElement.GetProperty("Station").ToString()
+                            ChannelId = channelElement.GetProperty("Station").ToString(),
+                            Block = Utilities.Time.CalculateBlockNumber(startDateTime)
                         };
 
                         listings.Add(listing);
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("Oof: " + e);
+                        Console.WriteLine("Oof: " + airingElement);
                     }
                 }
             }
