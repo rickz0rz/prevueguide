@@ -4,6 +4,8 @@ namespace PrevueGuide.Core.Data;
 
 public interface IListingsDataProvider : IDisposable
 {
+    public bool RequiresManualUpdating { get; }
+
     public Task AddChannelToLineup(string id, string channelNumber, string callSign);
     public Task<IEnumerable<LineUpEntry>> GetChannelLineup();
 

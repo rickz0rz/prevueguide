@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.SDL", "Pre
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.Data.LocalMemory", "PrevueGuide.Core.Data.LocalMemory\PrevueGuide.Core.Data.LocalMemory.csproj", "{B35B6E4D-8702-40FC-8542-E2C89E160C67}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrevueGuide.Core.Data.ChannelsDVR", "PrevueGuide.Core.Data.ChannelsDVR\PrevueGuide.Core.Data.ChannelsDVR.csproj", "{B5559A23-B61C-42A9-941E-9108F4A410E1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +50,9 @@ Global
 		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B35B6E4D-8702-40FC-8542-E2C89E160C67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5559A23-B61C-42A9-941E-9108F4A410E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5559A23-B61C-42A9-941E-9108F4A410E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5559A23-B61C-42A9-941E-9108F4A410E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5559A23-B61C-42A9-941E-9108F4A410E1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -43,9 +43,8 @@ public class Guide
     private const int ThirdColumnWidth = StandardColumnWidth + 36;
     private const int SingleArrowWidth = 16;
     private const int DoubleArrowWidth = 24;
-    private const string DatabaseFilename = "listings.db";
     private const int NumberOfFrameTimesToCapture = 60;
-    private const int MaximumChannelsToRender = 10;
+    private const int MaximumChannelsToRender = Int32.MaxValue;
 
     private bool _reloadGuideData = true;
     private bool _regenerateGridTextures;
@@ -109,12 +108,28 @@ public class Guide
 
         try
         {
-            _dataProvider = new Core.Data.SQLite.SQLiteListingsDataProvider(_logger, DatabaseFilename);
+            _dataProvider = new Core.Data.SQLite.SQLiteListingsDataProvider(_logger, "listings.db");
         }
         catch (Exception e)
         {
             logger.LogDebug(e.Message);
-            logger.LogInformation("Unable to utilize SQLite, falling back to in-memory data provider.");
+        }
+
+        if (_dataProvider == null)
+        {
+            try
+            {
+                _dataProvider = new Core.Data.ChannelsDVR.ChannelsDVRListingsDataProvider("http://192.168.0.119:8089");
+            }
+            catch (Exception e)
+            {
+                logger.LogDebug(e.Message);
+            }
+        }
+
+        if (_dataProvider == null)
+        {
+            logger.LogInformation("Unable to initialize data provider, falling back to in-memory data provider.");
             _dataProvider = new Core.Data.LocalMemory.LocalMemoryListingsDataProvider();
         }
 
@@ -613,6 +628,12 @@ public class Guide
             }
             else if (sdlEvent.Type == (uint)SDL3.SDL.EventType.DropFile)
             {
+                if (!_dataProvider.RequiresManualUpdating)
+                {
+                    _logger.LogInformation("Provider doesn't require manual updating, ignoring.");
+                    continue;
+                }
+
                 var filename = Marshal.PtrToStringAuto(sdlEvent.Drop.Data);
 
                 if (!File.Exists(filename))
@@ -994,7 +1015,7 @@ public class Guide
         var frameDrawStopWatch = Stopwatch.StartNew();
         var frameDelayStopWatch = Stopwatch.StartNew();
 
-        _ = SDL3.SDL.SetRenderDrawColor(_renderer, 255, 0, 255, 255);
+        _ = SDL3.SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 255);
         _ = SDL3.SDL.RenderClear(_renderer);
 
         // Generate the grid

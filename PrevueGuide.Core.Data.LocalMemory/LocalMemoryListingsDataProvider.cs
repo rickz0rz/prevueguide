@@ -4,6 +4,8 @@ namespace PrevueGuide.Core.Data.LocalMemory;
 
 public class LocalMemoryListingsDataProvider : IListingsDataProvider
 {
+    public bool RequiresManualUpdating => true;
+
     public void Dispose()
     {
         // throw new NotImplementedException();

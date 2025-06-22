@@ -23,8 +23,9 @@ public class SQLiteListingsDataProvider : IListingsDataProvider
     private const string ChannelListingsRatingColumnName = "Rating";
     private const string ChannelListingsSubtitledColumnName = "Subtitled";
 
-
     private readonly SQLiteConnection _sqLiteConnection;
+
+    public bool RequiresManualUpdating => true;
 
     private bool VerifyTableExists(string tableName)
     {
