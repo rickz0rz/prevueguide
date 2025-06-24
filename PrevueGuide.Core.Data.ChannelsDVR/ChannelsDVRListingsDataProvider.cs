@@ -98,8 +98,9 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                 var duration = airingElement.GetProperty("Duration").GetInt32();
                 var endDateTime = offset.LocalDateTime.AddSeconds(duration);
 
-                if ((startDateTime > startTime && startDateTime < endTime) ||
-                    (endDateTime > startTime && endDateTime < endTime) ||
+                if ((startDateTime < startTime && endDateTime > startTime && endDateTime <= endTime) ||
+                    (startDateTime >= startTime && startDateTime < endTime && endDateTime > startTime && endDateTime <= endTime) ||
+                    (startDateTime >= startTime && startDateTime < endTime && endDateTime > endTime) ||
                     (startDateTime < startTime && endDateTime > endTime))
                 {
                     try
