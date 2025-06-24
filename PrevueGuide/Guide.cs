@@ -336,7 +336,7 @@ public class Guide
                 channel.ChannelNumber,
                 _gridTextYellow, _scale));
             var channelLine2 = new Texture(Generators.GenerateDropShadowText(_renderer, _openedTtfFont,
-                channel.CallSign,
+                Font.FormatWithFontTokens(channel.CallSign),
                 _gridTextYellow, _scale));
 
             _listingChannelTextureMap.Add(channel.Id, (channelLine1, channelLine2));

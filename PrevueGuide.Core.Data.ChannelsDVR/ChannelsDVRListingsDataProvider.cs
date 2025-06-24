@@ -1,6 +1,6 @@
-﻿
-using System.Text.Json;
+﻿using System.Text.Json;
 using PrevueGuide.Core.Model;
+using PrevueGuide.Core.Utilities;
 
 namespace PrevueGuide.Core.Data.ChannelsDVR;
 
@@ -8,27 +8,13 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 {
     private readonly string _address;
 
-    public bool RequiresManualUpdating => false;
-
-    private async Task<JsonDocument> GetChannels()
-    {
-        using var httpClient = new HttpClient();
-        var response = await httpClient.GetAsync($"{_address}/api/v1/channels");
-        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-    }
-
-    private async Task<JsonDocument> GetGuide()
-    {
-        using var httpClient = new HttpClient();
-        var response = await httpClient.GetAsync($"{_address}/devices/ANY/guide");
-        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-    }
-
     public ChannelsDVRListingsDataProvider(string address)
     {
         _address = address;
         GetChannels().Wait();
     }
+
+    public bool RequiresManualUpdating => false;
 
     public void Dispose()
     {
@@ -41,12 +27,19 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 
     public async Task<IEnumerable<LineUpEntry>> GetChannelLineup()
     {
-        var list = new List<LineUpEntry>();
+        var lineUpEntries = new List<LineUpEntry>();
         var stationIds = new List<string>();
         var channels = await GetChannels();
 
-        foreach (var channelElement in channels.RootElement.EnumerateArray())
+        // Manually add prevue at 1.
+        lineUpEntries.Add(new LineUpEntry
         {
+            CallSign = "PREVUE",
+            ChannelNumber = "1",
+            Id = "PREVUE"
+        });
+
+        foreach (var channelElement in channels.RootElement.EnumerateArray())
             if (channelElement.TryGetProperty("station_id", out var stationElement))
             {
                 var stationId = stationElement.GetString();
@@ -63,18 +56,19 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                     Id = channelElement.GetProperty("station_id").GetString()
                 };
 
-                list.Add(lineUpEntry);
+                lineUpEntries.Add(lineUpEntry);
             }
             else
             {
                 Console.WriteLine("Oof: " + channelElement);
             }
-        }
 
-        return list;
+        return lineUpEntries;
     }
 
-    public Task AddChannelListing(List<(string channelId, string title, string category, string description, string year, string rating, string subtitled, DateTime startTime, DateTime endTime)> listings)
+    public Task AddChannelListing(
+        List<(string channelId, string title, string category, string description, string year, string rating, string
+            subtitled, DateTime startTime, DateTime endTime)> listings)
     {
         throw new NotImplementedException();
     }
@@ -83,6 +77,15 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
     {
         var listings = new List<Listing>();
         var guide = await GetGuide();
+
+        listings.Add(new Listing
+        {
+            StartTime = DateTime.Now.AddHours(-4),
+            EndTime = DateTime.Now.AddHours(4),
+            Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
+            ChannelId = "PREVUE",
+            Block = Time.CalculateBlockNumber(DateTime.Now)
+        });
 
         foreach (var guideElement in guide.RootElement.EnumerateArray())
         {
@@ -99,19 +102,19 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                 var endDateTime = startDateTime.AddSeconds(duration);
 
                 if ((startDateTime < startTime && endDateTime > startTime && endDateTime <= endTime) ||
-                    (startDateTime >= startTime && startDateTime < endTime && endDateTime > startTime && endDateTime <= endTime) ||
+                    (startDateTime >= startTime && startDateTime < endTime && endDateTime > startTime &&
+                     endDateTime <= endTime) ||
                     (startDateTime >= startTime && startDateTime < endTime && endDateTime > endTime) ||
                     (startDateTime < startTime && endDateTime > endTime))
-                {
                     try
                     {
                         var listing = new Listing
                         {
                             StartTime = startDateTime,
                             EndTime = endDateTime,
-                            Title = airingElement.GetProperty("Title").GetString(),
+                            Title = Font.FormatWithFontTokens(FormatTitle(airingElement)),
                             ChannelId = channelElement.GetProperty("Station").ToString(),
-                            Block = Utilities.Time.CalculateBlockNumber(startDateTime)
+                            Block = Time.CalculateBlockNumber(startDateTime)
                         };
 
                         listings.Add(listing);
@@ -120,10 +123,67 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                     {
                         Console.WriteLine("Oof: " + airingElement);
                     }
-                }
             }
         }
 
         return listings;
+    }
+
+    private async Task<JsonDocument> GetChannels()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync($"{_address}/api/v1/channels");
+        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+    }
+
+    private async Task<JsonDocument> GetGuide()
+    {
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync($"{_address}/devices/ANY/guide");
+        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+    }
+
+
+
+    private string FormatTitle(JsonElement airingElement)
+    {
+        var titleValue = airingElement.GetProperty("Title").GetString();
+        var isMovie = airingElement.TryGetProperty("MovieID", out _);
+        var title = isMovie
+            ? titleValue.Split("\"", StringSplitOptions.RemoveEmptyEntries).First().Split("(").First().Trim()
+                .Replace("%", "%%")
+            : titleValue.Replace("%", "%%");
+        var summary = airingElement.TryGetProperty("Summary", out _)
+            ? " " + airingElement.GetProperty("Summary").GetString().Replace("%", "%%")
+            : string.Empty;
+
+        var foundRating = airingElement.TryGetProperty("ContentRating", out _)
+            ? airingElement.GetProperty("ContentRating").GetString()
+            : string.Empty;
+        var rating = !string.IsNullOrWhiteSpace(foundRating) ? $" %{foundRating.Replace("-", "")}%" : "";
+
+        var stereo = airingElement.GetProperty("Tags").EnumerateArray().Any(x => x.GetString().Equals("Stereo"))
+            ? " %STEREO%"
+            : string.Empty;
+
+        var closedCaptioning =
+            airingElement.GetProperty("Tags").EnumerateArray().Any(x => x.GetString().Equals("CC"))
+                ? " %CC%"
+                : string.Empty;
+
+        var movieReleaseYear = isMovie
+            ? airingElement.GetProperty("ReleaseYear").GetInt32().ToString()
+            : string.Empty;
+
+        var extraString = isMovie
+            ? $"{rating}{summary}{stereo}{closedCaptioning}"
+            : $"{rating}{stereo}{closedCaptioning}".Trim();
+        extraString = string.IsNullOrWhiteSpace(extraString) ? string.Empty : $" {extraString}".TrimEnd();
+
+        var generatedDescription = isMovie
+            ? $"\"{title.Trim()}\" ({movieReleaseYear}){extraString}"
+            : $"{title.Trim()}{extraString}";
+
+        return generatedDescription;
     }
 }
