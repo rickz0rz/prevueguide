@@ -22,11 +22,7 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
     {
         logger.LogCritical("Unhandled exception encountered: {exceptionObject}", eventArgs.ExceptionObject);
     }
-
-    // Cheap but force the logger to flush.
-    if (eventArgs.IsTerminating)
-        // ReSharper disable once AccessToDisposedClosure
-        loggerFactory?.Dispose();
 };
 
-new PrevueGuide.Guide(logger).Run();
+using var guide = new PrevueGuide.Guide(logger);
+guide.Run();

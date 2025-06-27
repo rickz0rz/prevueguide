@@ -11,6 +11,13 @@ public class Texture : IDisposable
         SdlTexture = sdlTexture;
     }
 
+    public Texture(IntPtr renderer, int width, int height)
+    {
+        SdlTexture = SDL3.SDL.CreateTexture(renderer, SDL3.SDL.PixelFormat.RGBA8888,
+            SDL3.SDL.TextureAccess.Target, width, height);
+        _ = SDL3.SDL.SetTextureBlendMode(SdlTexture, SDL3.SDL.BlendMode.Blend);
+    }
+
     public Texture(ILogger logger, IntPtr renderer, string filename)
     {
         using var surface = new Surface(SDL3.Image.Load(filename));
