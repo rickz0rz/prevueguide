@@ -14,8 +14,15 @@ public static partial class SDL3Temp
     public static void RenderFillRect(nint renderer, SDL3.SDL.FRect rect)
     {
         var marshaledFRect = SDL3.SDL.StructureToPointer<SDL3.SDL.FRect>(rect);
-        SDL_RenderFillRect(renderer, marshaledFRect);
-        Marshal.FreeHGlobal(marshaledFRect);
+
+        try
+        {
+            SDL_RenderFillRect(renderer, marshaledFRect);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(marshaledFRect);
+        }
     }
 
     public static SDL3.SDL.FColor ToFColor(this SDL3.SDL.Color color)

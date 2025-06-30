@@ -33,9 +33,16 @@ public class TextureManager : IDisposable
     {
         foreach (var key in _textureMap.Keys)
         {
-            if (_textureMap.TryRemove(key, out var texture))
+            if (!_textureMap.TryRemove(key, out var texture))
+                continue;
+
+            try
             {
                 texture?.Dispose();
+            }
+            catch (Exception _)
+            {
+                // ignored for now.
             }
         }
 
