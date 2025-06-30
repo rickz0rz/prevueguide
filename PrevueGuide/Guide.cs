@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using PrevueGuide.Core;
+using PrevueGuide.Core.Data.ChannelsDVR;
 using PrevueGuide.Core.Model;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
@@ -9,13 +10,10 @@ namespace PrevueGuide;
 
 public class Guide : IDisposable
 {
-    private const int DefaultWindowWidth = 716;
-    private const int DefaultWindowHeight = 436;
-
-    private readonly TextureManager _textureManager;
-
     private readonly ILogger _logger;
-    private IGuideTextureProvider _guideTextureProvider;
+    private readonly TextureManager _textureManager;
+    private readonly IGuideTextureProvider _guideTextureProvider;
+
     private IntPtr _window;
     private IntPtr _renderer;
     private bool _running;
@@ -27,6 +25,7 @@ public class Guide : IDisposable
     {
         _logger = logger;
         _textureManager = new TextureManager(logger);
+        _guideTextureProvider = new EsquireGuideTextureProvider(logger);
     }
 
     public void Run()
@@ -50,8 +49,8 @@ public class Guide : IDisposable
         _ = TTF.Init();
 
         _window = SDL.CreateWindow("Prevue Guide",
-            DefaultWindowWidth,
-            DefaultWindowHeight,
+            _guideTextureProvider.DefaultWindowWidth,
+            _guideTextureProvider.DefaultWindowHeight,
             _highDpi ? SDL.WindowFlags.HighPixelDensity : 0);
 
         if (_window == IntPtr.Zero)
@@ -67,9 +66,10 @@ public class Guide : IDisposable
             throw new Exception($"There was an issue creating the renderer. {SDL.GetError()}");
         }
 
+        _guideTextureProvider.SetRenderer(_renderer);
+
         SetFullscreen();
         SetVSync();
-
         SetScaleFromWindowSize();
 
         _running = true;
@@ -79,10 +79,9 @@ public class Guide : IDisposable
     {
         SDL.GetWindowSizeInPixels(_window, out var windowWidthPixels, out var windowHeightPixels);
         _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
-        Configuration.Scale = windowWidthPixels / DefaultWindowWidth;
-        _logger.LogInformation(@"[Window] Scale: {Scale}x", Configuration.Scale);
 
-        _guideTextureProvider = new EsquireGuideTextureProvider(_renderer);
+        Configuration.Scale = windowWidthPixels / _guideTextureProvider.DefaultWindowWidth;
+        _logger.LogInformation(@"[Window] Scale: {Scale}x", Configuration.Scale);
     }
 
     private void SetFullscreen()
@@ -141,9 +140,11 @@ public class Guide : IDisposable
         {
             _textureManager.PurgeTexture("frame");
 
+            var now = DateTime.Now;
+
+            /*
             // Create a fake listing. Set it 15 minutes in the past and 105 minutes into the future
             // so the listing gets single arrows on both sides.
-            var now = DateTime.Now;
             var startTime = Core.Utilities.Time.ClampToNextHalfHourIfTenMinutesAway(now).AddMinutes(-15);
             var listing = new Listing
             {
@@ -151,6 +152,13 @@ public class Guide : IDisposable
                 Block = 0,
                 EndTime = startTime.AddHours(2)
             };
+            */
+
+            var provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
+            provider.PrevueChannelNumber = null;
+            var startTime = Core.Utilities.Time.ClampToNextHalfHourIfTenMinutesAway(now);
+            var endTime = startTime.AddMinutes(90);
+            var listing = provider.GetChannelListings(startTime, endTime).Result.First();
 
             _textureManager["frame"] = _guideTextureProvider.GenerateListingTexture(listing, now);
         }

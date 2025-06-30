@@ -8,5 +8,10 @@ namespace PrevueGuide.Core.SDL;
 public interface IGuideTextureProvider
 {
     SDL3.SDL.Color DefaultGuideBackground { get; }
+    int DefaultWindowWidth { get; }
+    int DefaultWindowHeight { get; }
+    bool FullscreenLetterbox { get; }
+
+    void SetRenderer(nint renderer);
     Texture GenerateListingTexture(Listing listing, DateTime firstColumnStartTime);
 }

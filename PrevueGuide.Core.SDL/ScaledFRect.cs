@@ -12,6 +12,6 @@ public struct ScaledFRect
 
     public SDL3.SDL.FRect ToFRect()
     {
-        return new SDL3.SDL.FRect {  X = X * Configuration.Scale, Y = Y * Configuration.Scale, W = W * Configuration.Scale, H = H * Configuration.Scale };
+        return new SDL3.SDL.FRect { X = X * Configuration.Scale, Y = Y * Configuration.Scale, W = W * Configuration.Scale, H = H * Configuration.Scale };
     }
 }

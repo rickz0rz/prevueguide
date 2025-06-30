@@ -46,12 +46,7 @@ public static partial class InternalSDL3
 
         try
         {
-            var regularVertexes = vertices.Select(vertex => new SDL3.SDL.Vertex
-            {
-                Color = vertex.Color,
-                Position = new SDL3.SDL.FPoint { X = vertex.Position.X * Configuration.Scale, Y = vertex.Position.Y * Configuration.Scale },
-                TexCoord = new SDL3.SDL.FPoint { X = vertex.TexCoord.X * Configuration.Scale, Y = vertex.TexCoord.Y * Configuration.Scale },
-            });
+            var regularVertexes = vertices.Select(vertex => vertex.ToVertex());
 
             verticesPtr = SDL3.SDL.StructureArrayToPointer(regularVertexes.ToArray());
             indicesPtr = indices == null || indices.Count == 0

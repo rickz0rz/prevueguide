@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using PrevueGuide.Core.Model;
 using PrevueGuide.Core.Utilities;
 
@@ -6,15 +7,19 @@ namespace PrevueGuide.Core.Data.ChannelsDVR;
 
 public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 {
+    private readonly ILogger _logger;
     private readonly string _address;
 
-    public ChannelsDVRListingsDataProvider(string address)
+    public ChannelsDVRListingsDataProvider(ILogger logger, string address)
     {
+        _logger = logger;
         _address = address;
+
         GetChannels().Wait();
     }
 
     public bool RequiresManualUpdating => false;
+    public int? PrevueChannelNumber { get; set; } = 1;
 
     public void Dispose()
     {
@@ -31,13 +36,15 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         var stationIds = new List<string>();
         var channels = await GetChannels();
 
-        // Manually add prevue at 1.
-        lineUpEntries.Add(new LineUpEntry
+        if (PrevueChannelNumber.HasValue)
         {
-            CallSign = "PREVUE",
-            ChannelNumber = "1",
-            Id = "PREVUE"
-        });
+            lineUpEntries.Add(new LineUpEntry
+            {
+                CallSign = "PREVUE",
+                ChannelNumber = $"{PrevueChannelNumber.Value}",
+                Id = "PREVUE"
+            });
+        }
 
         foreach (var channelElement in channels.RootElement.EnumerateArray())
             if (channelElement.TryGetProperty("station_id", out var stationElement))
@@ -60,7 +67,7 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
             }
             else
             {
-                Console.WriteLine("Oof: " + channelElement);
+                Console.WriteLine(": " + channelElement);
             }
 
         return lineUpEntries;
@@ -78,14 +85,17 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         var listings = new List<Listing>();
         var guide = await GetGuide();
 
-        listings.Add(new Listing
+        if (PrevueChannelNumber.HasValue)
         {
-            StartTime = DateTime.Now.AddHours(-4),
-            EndTime = DateTime.Now.AddHours(4),
-            Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
-            ChannelId = "PREVUE",
-            Block = Time.CalculateBlockNumber(DateTime.Now)
-        });
+            listings.Add(new Listing
+            {
+                StartTime = DateTime.Now.AddHours(-4),
+                EndTime = DateTime.Now.AddHours(4),
+                Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
+                ChannelId = "PREVUE",
+                Block = Time.CalculateBlockNumber(DateTime.Now)
+            });
+        }
 
         foreach (var guideElement in guide.RootElement.EnumerateArray())
         {
@@ -102,18 +112,24 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                 var endDateTime = startDateTime.AddSeconds(duration);
 
                 if ((startDateTime < startTime && endDateTime > startTime && endDateTime <= endTime) ||
-                    (startDateTime >= startTime && startDateTime < endTime && endDateTime > startTime &&
-                     endDateTime <= endTime) ||
+                    (startDateTime >= startTime && startDateTime < endTime && endDateTime > startTime && endDateTime <= endTime) ||
                     (startDateTime >= startTime && startDateTime < endTime && endDateTime > endTime) ||
                     (startDateTime < startTime && endDateTime > endTime))
                     try
                     {
+                        var channelId = channelElement.GetProperty("ChannelID").GetString();
+
+                        if (channelElement.TryGetProperty("Station", out var stationElement))
+                        {
+                            channelId = stationElement.GetString();
+                        }
+
                         var listing = new Listing
                         {
                             StartTime = startDateTime,
                             EndTime = endDateTime,
                             Title = Font.FormatWithFontTokens(FormatTitle(airingElement)),
-                            ChannelId = channelElement.GetProperty("Station").ToString(),
+                            ChannelId = channelId,
                             Block = Time.CalculateBlockNumber(startDateTime)
                         };
 
@@ -121,7 +137,7 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("Oof: " + airingElement);
+                        _logger.LogError(e, "Unable to process airing element");
                     }
             }
         }
@@ -143,8 +159,6 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
     }
 
-
-
     private string FormatTitle(JsonElement airingElement)
     {
         var titleValue = airingElement.GetProperty("Title").GetString();
@@ -162,14 +176,20 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
             : string.Empty;
         var rating = !string.IsNullOrWhiteSpace(foundRating) ? $" %{foundRating.Replace("-", "")}%" : "";
 
-        var stereo = airingElement.GetProperty("Tags").EnumerateArray().Any(x => x.GetString().Equals("Stereo"))
-            ? " %STEREO%"
-            : string.Empty;
+        var stereo = string.Empty;
+        var closedCaptioning = string.Empty;
 
-        var closedCaptioning =
-            airingElement.GetProperty("Tags").EnumerateArray().Any(x => x.GetString().Equals("CC"))
-                ? " %CC%"
+        if (airingElement.TryGetProperty("Tags", out var tagsProperty))
+        {
+            stereo = tagsProperty.EnumerateArray().Any(x => x.GetString().Equals("Stereo"))
+                ? " %STEREO%"
                 : string.Empty;
+
+            closedCaptioning =
+                tagsProperty.EnumerateArray().Any(x => x.GetString().Equals("CC"))
+                    ? " %CC%"
+                    : string.Empty;
+        }
 
         var movieReleaseYear = isMovie
             ? airingElement.GetProperty("ReleaseYear").GetInt32().ToString()

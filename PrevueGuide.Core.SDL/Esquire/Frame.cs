@@ -10,8 +10,8 @@ public static class Frame
 
         var rect = new SDL3.SDL.Rect
         {
-            W = (int)width / Configuration.Scale,
-            H = (int)height / Configuration.Scale,
+            W = (int)(width / Configuration.Scale),
+            H = (int)(height / Configuration.Scale),
             X = 0,
             Y = 0
         };
