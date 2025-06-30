@@ -3,15 +3,13 @@ using System.Runtime.InteropServices;
 
 namespace PrevueGuide.Core.SDL;
 
-public static class SDL3Temp
+public static partial class SDL3Temp
 {
-    [DllImport("SDL3", EntryPoint = "SDL_RenderFillRect", ExactSpelling = true)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    static extern sbyte SDL_RenderFillRect(nint renderer, nint fRect);
+    [LibraryImport("SDL3")]
+    private static partial sbyte SDL_RenderFillRect(nint renderer, nint fRect);
 
-    [DllImport("SDL3", EntryPoint = "SDL_RenderGeometry", ExactSpelling = true)]
-    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    static extern sbyte SDL_RenderGeometry(nint renderer, nint texture, nint vertices, int numVertices, nint indices, int numIndices);
+    [LibraryImport("SDL3")]
+    private static partial sbyte SDL_RenderGeometry(nint renderer, nint texture, nint vertices, int numVertices, nint indices, int numIndices);
 
     public static void RenderFillRect(nint renderer, SDL3.SDL.FRect rect)
     {
