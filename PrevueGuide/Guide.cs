@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using PrevueGuide.Core;
 using PrevueGuide.Core.Model;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
@@ -18,8 +19,7 @@ public class Guide : IDisposable
     private IntPtr _window;
     private IntPtr _renderer;
     private bool _running;
-    private int _scale;
-    private bool _highDpi = false;
+    private bool _highDpi = true;
     private bool _vsync = true;
     private bool _fullscreen;
 
@@ -79,10 +79,10 @@ public class Guide : IDisposable
     {
         SDL.GetWindowSizeInPixels(_window, out var windowWidthPixels, out var windowHeightPixels);
         _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
-        _scale = windowWidthPixels / DefaultWindowWidth;
-        _logger.LogInformation(@"[Window] Scale: {Scale}x", _scale);
+        Configuration.Scale = windowWidthPixels / DefaultWindowWidth;
+        _logger.LogInformation(@"[Window] Scale: {Scale}x", Configuration.Scale);
 
-        _guideTextureProvider = new EsquireGuideTextureProvider(_renderer, _scale);
+        _guideTextureProvider = new EsquireGuideTextureProvider(_renderer);
     }
 
     private void SetFullscreen()
@@ -162,7 +162,7 @@ public class Guide : IDisposable
 
     private void Render()
     {
-        _ = SDL3Temp.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
         _ = SDL.RenderClear(_renderer);
 
         var frame = _textureManager["frame"];

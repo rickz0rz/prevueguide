@@ -16,12 +16,10 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
     // Arrow has a margin of 1px from the bevel.
 
     private readonly nint _renderer;
-    private readonly int _scale;
 
-    public EsquireGuideTextureProvider(nint renderer, int scale)
+    public EsquireGuideTextureProvider(nint renderer)
     {
         _renderer = renderer;
-        _scale = scale;
     }
 
     public SDL3.SDL.Color DefaultGuideBackground => Colors.DefaultBlue;
@@ -107,11 +105,11 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
             width = ThirdColumnWidth;
         }
 
-        var texture = new Texture(_renderer, width, height, _scale);
+        var texture = new Texture(_renderer, width, height);
 
         var oldRenderTarget = SDL3.SDL.GetRenderTarget(_renderer);
         _ = SDL3.SDL.SetRenderTarget(_renderer, texture.SdlTexture);
-        _ = SDL3Temp.SetRenderDrawColor(_renderer, Colors.DefaultBlue);
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.DefaultBlue);
         _ = SDL3.SDL.RenderClear(_renderer);
 
         switch (leftArrow)
@@ -119,7 +117,7 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
             case ArrowType.Single:
             {
                 // Draw black.
-                _ = SDL3Temp.SetRenderDrawColor(_renderer, Colors.Black17);
+                _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black17);
 
                 var arrowBlackVertices = new List<SDL3.SDL.Vertex>
                 {
@@ -127,56 +125,56 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
                     {
                         // 15, 0
                         Color = Colors.Black17.ToFColor(),
-                        Position = new ScaledFPoint { X = 20, Y = 5, Scale = _scale }.ToFPoint()
+                        Position = new ScaledFPoint { X = 20, Y = 5 }.ToFPoint()
                     },
                     new()
                     {
                         // 0, 25
                         Color = Colors.Black17.ToFColor(),
-                        Position = new ScaledFPoint { X = 5, Y = 30, Scale = _scale }.ToFPoint()
+                        Position = new ScaledFPoint { X = 5, Y = 30 }.ToFPoint()
                     },
                     new()
                     {
                         // 15, 50
                         Color = Colors.Black17.ToFColor(),
-                        Position = new ScaledFPoint { X = 20, Y = 55, Scale = _scale }.ToFPoint()
+                        Position = new ScaledFPoint { X = 20, Y = 55 }.ToFPoint()
                     }
                 };
 
                 _ = SDL3.SDL.RenderGeometry(_renderer, IntPtr.Zero, arrowBlackVertices.ToArray(), arrowBlackVertices.Count, IntPtr.Zero, 0);
 
                 // Draw gray.
-                _ = SDL3Temp.SetRenderDrawColor(_renderer, Colors.Gray170);
+                _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Gray170);
 
-                var arrowWhiteVertices = new List<SDL3.SDL.Vertex>
+                var arrowWhiteVertices = new List<ScaledVertex>
                 {
                     new()
                     {
                         // 14, 2
                         Color = Colors.Gray170.ToFColor(),
-                        Position = new ScaledFPoint { X = 19, Y = 7, Scale = _scale }.ToFPoint()
+                        Position = new ScaledFPoint { X = 19, Y = 7 }
                     },
                     new()
                     {
                         // 2, 25
                         Color = Colors.Gray170.ToFColor(),
-                        Position = new ScaledFPoint { X = 7, Y = 30, Scale = _scale }.ToFPoint()
+                        Position = new ScaledFPoint { X = 7, Y = 30 }
                     },
                     new()
                     {
                         // 14, 48
                         Color = Colors.Gray170.ToFColor(),
-                        Position = new ScaledFPoint { X = 19, Y = 53, Scale = _scale }.ToFPoint()
+                        Position = new ScaledFPoint { X = 19, Y = 53 }
                     }
                 };
 
-                _ = SDL3.SDL.RenderGeometry(_renderer, IntPtr.Zero, arrowWhiteVertices.ToArray(), arrowWhiteVertices.Count, IntPtr.Zero, 0);
+                _ = InternalSDL3.RenderGeometry(_renderer, IntPtr.Zero, arrowWhiteVertices, null);
 
                 break;
             }
         }
 
-        Frame.CreateBevelOnTexture(_renderer, texture, _scale);
+        Frame.CreateBevelOnTexture(_renderer, texture);
 
         _ = SDL3.SDL.SetRenderTarget(_renderer, oldRenderTarget);
 

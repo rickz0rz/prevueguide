@@ -4,23 +4,22 @@ namespace PrevueGuide.Core.SDL.Esquire;
 
 public static class Frame
 {
-    public static void CreateBevelOnTexture(nint renderer, Texture texture, int scale, int bevelSize = 4)
+    public static void CreateBevelOnTexture(nint renderer, Texture texture, int bevelSize = 4)
     {
         _ = SDL3.SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
 
-        // When translating to a Rect, remove the scale.
         var rect = new SDL3.SDL.Rect
         {
-            W = (int)width / scale,
-            H = (int)height / scale,
+            W = (int)width / Configuration.Scale,
+            H = (int)height / Configuration.Scale,
             X = 0,
             Y = 0
         };
 
-        CreateBevelOnTexture(renderer, texture, scale, rect, bevelSize);
+        CreateBevelOnTexture(renderer, texture, rect, bevelSize);
     }
 
-    public static void CreateBevelOnTexture(nint renderer, Texture texture, int scale, SDL3.SDL.Rect rect, int bevelSize = 4)
+    public static void CreateBevelOnTexture(nint renderer, Texture texture, SDL3.SDL.Rect rect, int bevelSize = 4)
     {
         var frameBevelHighlight = Colors.Gray170;
         var frameBevelShadow = Colors.Black17;
@@ -30,174 +29,174 @@ public static class Frame
         _ = SDL3.SDL.SetRenderTarget(renderer, texture.SdlTexture);
 
         // Highlight: Top and left edges.
-        _ = SDL3Temp.SetRenderDrawColor(renderer, frameBevelHighlight);
+        _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelHighlight);
         foreach (var scaledFRect in new[]
                  {
-                     new ScaledFRect { H = bevelSize, W = rect.W - bevelSize, X = rect.X, Y = rect.Y, Scale = scale },
-                     new ScaledFRect { H = rect.H - (bevelSize * 2), W = bevelSize, X = rect.X, Y = rect.Y + bevelSize, Scale = scale }
+                     new ScaledFRect { H = bevelSize, W = rect.W - bevelSize, X = rect.X, Y = rect.Y },
+                     new ScaledFRect { H = rect.H - (bevelSize * 2), W = bevelSize, X = rect.X, Y = rect.Y + bevelSize }
                  })
         {
-            SDL3Temp.RenderFillRect(renderer, scaledFRect.ToFRect());
+            InternalSDL3.RenderFillRect(renderer, scaledFRect);
         }
 
         // Shadow: bottom and right edges.
-        _ = SDL3Temp.SetRenderDrawColor(renderer, frameBevelShadow);
+        _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelShadow);
         foreach (var scaledFRect in new[]
                  {
-                     new ScaledFRect { H = bevelSize, W = rect.W, X = rect.X, Y = rect.Y + rect.H - bevelSize, Scale = scale },
-                     new ScaledFRect { H = rect.H, W = bevelSize, X = rect.X + rect.W - bevelSize, Y = rect.Y, Scale = scale }
+                     new ScaledFRect { H = bevelSize, W = rect.W, X = rect.X, Y = rect.Y + rect.H - bevelSize },
+                     new ScaledFRect { H = rect.H, W = bevelSize, X = rect.X + rect.W - bevelSize, Y = rect.Y }
                  })
         {
-            SDL3Temp.RenderFillRect(renderer, scaledFRect.ToFRect());
+            InternalSDL3.RenderFillRect(renderer, scaledFRect);
         }
 
         // Draw white triangle, bottom left.
-        _ = SDL3Temp.SetRenderDrawColor(renderer, frameBevelHighlight);
-        var vertexListBottomLeft = new List<SDL3.SDL.Vertex>
+        _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelHighlight);
+        var vertexListBottomLeft = new List<ScaledVertex>
         {
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.X, Y = rect.H + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.X, Y = rect.H + rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.X, Y = rect.H - bevelSize + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.X, Y = rect.H - bevelSize + rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = bevelSize + rect.X, Y = rect.H - bevelSize + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = bevelSize + rect.X, Y = rect.H - bevelSize + rect.Y }
             }
         };
-        _ = SDL3.SDL.RenderGeometry(renderer, IntPtr.Zero, vertexListBottomLeft.ToArray(), vertexListBottomLeft.Count, IntPtr.Zero, 0);
+        _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListBottomLeft, null);
 
         // Draw white triangle, upper right.
-        var vertexListUpperRight = new List<SDL3.SDL.Vertex>
+        var vertexListUpperRight = new List<ScaledVertex>
         {
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W + rect.X, Y = rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W + rect.X, Y = rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = bevelSize + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = bevelSize + rect.Y }
             }
         };
-        _ = SDL3.SDL.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperRight.ToArray(), vertexListUpperRight.Count, IntPtr.Zero, 0);
+        _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperRight, null);
 
         // Render a block on the top-left that's going to be black to render triangles on
-        _ = SDL3Temp.SetRenderDrawColor(renderer, frameBevelShadow);
+        _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelShadow);
         foreach (var scaledFRect in new[]
                  {
-                     new ScaledFRect { H = bevelSize + 1, W = bevelSize, X = rect.X, Y = rect.Y, Scale = scale },
-                     new ScaledFRect { H = bevelSize, W = bevelSize + 1, X = rect.X, Y = rect.Y, Scale = scale }
+                     new ScaledFRect { H = bevelSize + 1, W = bevelSize, X = rect.X, Y = rect.Y },
+                     new ScaledFRect { H = bevelSize, W = bevelSize + 1, X = rect.X, Y = rect.Y }
                  })
         {
-            SDL3Temp.RenderFillRect(renderer, scaledFRect.ToFRect());
+            InternalSDL3.RenderFillRect(renderer, scaledFRect.ToFRect());
         }
 
         // Draw white triangles, upper left
-        var vertexListUpperLeftA = new List<SDL3.SDL.Vertex>
+        var vertexListUpperLeftA = new List<ScaledVertex>
         {
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.X, Y = 1 + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.X, Y = 1 + rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = rect.X, Y = bevelSize + 1 + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.X, Y = bevelSize + 1 + rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = bevelSize + rect.X, Y = bevelSize + 1 + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = bevelSize + rect.X, Y = bevelSize + 1 + rect.Y }
             }
         };
-        _ = SDL3.SDL.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftA.ToArray(), vertexListUpperLeftA.Count, IntPtr.Zero, 0);
+        _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftA, null);
 
-        var vertexListUpperLeftB = new List<SDL3.SDL.Vertex>
+        var vertexListUpperLeftB = new List<ScaledVertex>
         {
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = 1 + rect.X, Y = rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = 1 + rect.X, Y = rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = bevelSize + 1 + rect.X, Y = rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = bevelSize + 1 + rect.X, Y = rect.Y }
             },
             new()
             {
                 Color = frameBevelHighlight.ToFColor(),
-                Position = new ScaledFPoint { X = bevelSize + 1 + rect.X, Y = bevelSize + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = bevelSize + 1 + rect.X, Y = bevelSize + rect.Y }
             }
         };
-        _ = SDL3.SDL.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftB.ToArray(), vertexListUpperLeftB.Count, IntPtr.Zero, 0);
+        _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftB, null);
 
         // Render a block on the bottom-right that's going to be gray to render triangles on
-        _ = SDL3Temp.SetRenderDrawColor(renderer, frameBevelShadowCorner);
+        _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelShadowCorner);
         foreach (var scaledFRect in new[]
                  {
-                     new ScaledFRect { H = bevelSize + 1, W = bevelSize, X = rect.W - bevelSize + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y, Scale = scale },
-                     new ScaledFRect { H = bevelSize, W = bevelSize + 1, X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H - bevelSize + rect.Y, Scale = scale }
+                     new ScaledFRect { H = bevelSize + 1, W = bevelSize, X = rect.W - bevelSize + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y  },
+                     new ScaledFRect { H = bevelSize, W = bevelSize + 1, X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H - bevelSize + rect.Y  }
                  })
         {
-            SDL3Temp.RenderFillRect(renderer, scaledFRect.ToFRect());
+            InternalSDL3.RenderFillRect(renderer, scaledFRect.ToFRect());
         }
 
         // Draw black triangles, lower right
-        _ = SDL3Temp.SetRenderDrawColor(renderer, frameBevelShadow);
-        var vertexListLowerRightA = new List<SDL3.SDL.Vertex>
+        _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelShadow);
+        var vertexListLowerRightA = new List<ScaledVertex>
         {
             new()
             {
                 Color = frameBevelShadow.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W + rect.X, Y = rect.H - 1 + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W + rect.X, Y = rect.H - 1 + rect.Y }
             },
             new()
             {
                 Color = frameBevelShadow.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y }
             },
             new()
             {
                 Color = frameBevelShadow.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y }
             }
         };
-        _ = SDL3.SDL.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightA.ToArray(), vertexListLowerRightA.Count, IntPtr.Zero, 0);
+        _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightA, null);
 
-        var vertexListLowerRightB = new List<SDL3.SDL.Vertex>
+        var vertexListLowerRightB = new List<ScaledVertex>
         {
             new()
             {
                 Color = frameBevelShadow.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W - 1 + rect.X, Y = rect.H + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W - 1 + rect.X, Y = rect.H + rect.Y }
             },
             new()
             {
                 Color = frameBevelShadow.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H + rect.Y }
             },
             new()
             {
                 Color = frameBevelShadow.ToFColor(),
-                Position = new ScaledFPoint { X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H - bevelSize + rect.Y, Scale = scale }.ToFPoint()
+                Position = new ScaledFPoint { X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H - bevelSize + rect.Y }
             }
         };
-        _ = SDL3.SDL.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightB.ToArray(), vertexListLowerRightB.Count, IntPtr.Zero, 0);
+        _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightB, null);
 
         _ = SDL3.SDL.SetRenderTarget(renderer, oldRenderTarget);
     }
