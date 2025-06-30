@@ -14,4 +14,8 @@
       <PackageReference Include="SDL3-CS.Native.TTF" Version="3.2.2" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\PrevueGuide.Core\PrevueGuide.Core.csproj" />
+    </ItemGroup>
+
 </Project>
