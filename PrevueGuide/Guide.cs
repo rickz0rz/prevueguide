@@ -91,7 +91,7 @@ public class Guide : IDisposable
 
         if (_guideTextureProvider.DefaultFullscreenMode == FullscreenMode.Letterbox)
         {
-            _logger.LogInformation("Using fullscreen mode: Letterbox");
+            _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.Letterbox}");
 
             Configuration.DrawableWidth = Configuration.Scale * _guideTextureProvider.DefaultWindowWidth;
             Configuration.DrawableHeight = Configuration.Scale * _guideTextureProvider.DefaultWindowHeight;
@@ -104,7 +104,7 @@ public class Guide : IDisposable
         }
         else // Default: ScaledFill
         {
-            _logger.LogInformation("Not using fullscreen mode: ScaledFill");
+            _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.ScaledFill}");
 
             Configuration.DrawableWidth = windowWidthPixels;
             Configuration.DrawableHeight = windowHeightPixels;
