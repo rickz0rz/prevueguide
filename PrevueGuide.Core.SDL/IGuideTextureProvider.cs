@@ -13,5 +13,6 @@ public interface IGuideTextureProvider
     FullscreenMode DefaultFullscreenMode { get; }
 
     void SetRenderer(nint renderer);
+
     Texture GenerateListingTexture(Listing listing, DateTime firstColumnStartTime);
 }

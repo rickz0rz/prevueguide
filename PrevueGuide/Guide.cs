@@ -13,8 +13,8 @@ public class Guide : IDisposable
 {
     private readonly ILogger _logger;
     private readonly TextureManager _textureManager;
-    private readonly IGuideTextureProvider _guideTextureProvider;
 
+    private IGuideTextureProvider _guideTextureProvider;
     private IntPtr _window;
     private IntPtr _renderer;
     private bool _running;
@@ -26,7 +26,8 @@ public class Guide : IDisposable
     {
         _logger = logger;
         _textureManager = new TextureManager(logger);
-        _guideTextureProvider = new EsquireGuideTextureProvider(logger);
+
+        _guideTextureProvider = new EsquireGuideTextureProvider(_logger);
     }
 
     public void Run()
@@ -171,31 +172,20 @@ public class Guide : IDisposable
     {
         try
         {
-            _textureManager.PurgeTexture("frame");
+            _textureManager.PurgeTexture("frame1");
+            _textureManager.PurgeTexture("frame2");
             _textureManager.PurgeTexture("guide");
 
             var now = DateTime.Now;
-
-            /*
-            // Create a fake listing. Set it 15 minutes in the past and 105 minutes into the future
-            // so the listing gets single arrows on both sides.
-            var startTime = Core.Utilities.Time.ClampToNextHalfHourIfTenMinutesAway(now).AddMinutes(-15);
-            var listing = new Listing
-            {
-                StartTime = startTime,
-                Block = 0,
-                EndTime = startTime.AddHours(2)
-            };
-            */
-
             var provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
             provider.PrevueChannelNumber = null;
             var startTime = Core.Utilities.Time.ClampToNextHalfHourIfTenMinutesAway(now);
             var endTime = startTime.AddMinutes(90);
-            var listing = provider.GetChannelListings(startTime, endTime).Result.First();
+            var listings = provider.GetChannelListings(startTime, endTime).Result;
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-            _textureManager["frame"] = _guideTextureProvider.GenerateListingTexture(listing, now);
+            _textureManager["frame1"] = _guideTextureProvider.GenerateListingTexture(listings.First(), now);
+            _textureManager["frame2"] = _guideTextureProvider.GenerateListingTexture(listings.Skip(1).First(), now);
         }
         catch (Exception ex)
         {
@@ -215,21 +205,25 @@ public class Guide : IDisposable
             InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
             SDL.RenderClear(_renderer);
 
-            var frame = _textureManager["frame"];
-
-            if (frame != null)
+            foreach (var t in new[] { ("frame1", 0), ("frame2", 56 * Configuration.Scale) })
             {
-                _ = SDL.GetTextureSize(frame.SdlTexture, out var width, out var height);
-                var dstFRect = new SDL.FRect
-                {
-                    X = 0,
-                    Y = 0,
-                    W = width,
-                    H = height
-                };
+                var frame1 = _textureManager[t.Item1];
 
-                _ = SDL.RenderTexture(_renderer, frame.SdlTexture, IntPtr.Zero, dstFRect);
+                if (frame1 != null)
+                {
+                    _ = SDL.GetTextureSize(frame1.SdlTexture, out var width, out var height);
+                    var dstFRect = new SDL.FRect
+                    {
+                        X = 0,
+                        Y = t.Item2,
+                        W = width,
+                        H = height
+                    };
+
+                    _ = SDL.RenderTexture(_renderer, frame1.SdlTexture, IntPtr.Zero, dstFRect);
+                }
             }
+
         }
 
         var guideFRect = new SDL.FRect

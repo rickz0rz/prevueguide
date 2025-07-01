@@ -1,4 +1,4 @@
-namespace PrevueGuide.Model;
+namespace PrevueGuide.Core.Model;
 
 public record Channel
 {
