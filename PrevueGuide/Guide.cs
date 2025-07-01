@@ -4,6 +4,7 @@ using PrevueGuide.Core.Data.ChannelsDVR;
 using PrevueGuide.Core.Model;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
+using PrevueGuide.Core.SDL.Wrappers;
 using SDL3;
 
 namespace PrevueGuide;
@@ -78,10 +79,42 @@ public class Guide : IDisposable
     private void SetScaleFromWindowSize()
     {
         SDL.GetWindowSizeInPixels(_window, out var windowWidthPixels, out var windowHeightPixels);
-        _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
+        _logger.LogInformation(@"[Window] Window Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
 
-        Configuration.Scale = windowWidthPixels / _guideTextureProvider.DefaultWindowWidth;
+        var rawWidthScale = (float)windowWidthPixels / _guideTextureProvider.DefaultWindowWidth;
+        var rawHeightScale = (float)windowHeightPixels / _guideTextureProvider.DefaultWindowHeight;
+        _logger.LogInformation(@"[Window] Scales: {Width} x {Height}", rawWidthScale, rawHeightScale);
+
+        var smallerScale = rawWidthScale > rawHeightScale ? rawHeightScale : rawWidthScale;
+        Configuration.Scale = (int)float.Floor(smallerScale);
         _logger.LogInformation(@"[Window] Scale: {Scale}x", Configuration.Scale);
+
+        if (_guideTextureProvider.DefaultFullscreenMode == FullscreenMode.Letterbox)
+        {
+            _logger.LogInformation("Using fullscreen mode: Letterbox");
+
+            Configuration.DrawableWidth = Configuration.Scale * _guideTextureProvider.DefaultWindowWidth;
+            Configuration.DrawableHeight = Configuration.Scale * _guideTextureProvider.DefaultWindowHeight;
+            _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
+                Configuration.DrawableHeight);
+
+            Configuration.X = (windowWidthPixels - Configuration.DrawableWidth) / 2;
+            Configuration.Y = (windowHeightPixels - Configuration.DrawableHeight) / 2;
+            _logger.LogInformation(@"[Window] Offset: {Width} x {Height}", Configuration.X, Configuration.Y);
+        }
+        else // Default: ScaledFill
+        {
+            _logger.LogInformation("Not using fullscreen mode: ScaledFill");
+
+            Configuration.DrawableWidth = windowWidthPixels;
+            Configuration.DrawableHeight = windowHeightPixels;
+            _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
+                Configuration.DrawableHeight);
+
+            Configuration.X = 0;
+            Configuration.Y = 0;
+            _logger.LogInformation(@"[Window] Offset: {Width} x {Height}", Configuration.X, Configuration.Y);
+        }
     }
 
     private void SetFullscreen()
@@ -139,6 +172,7 @@ public class Guide : IDisposable
         try
         {
             _textureManager.PurgeTexture("frame");
+            _textureManager.PurgeTexture("guide");
 
             var now = DateTime.Now;
 
@@ -160,6 +194,7 @@ public class Guide : IDisposable
             var endTime = startTime.AddMinutes(90);
             var listing = provider.GetChannelListings(startTime, endTime).Result.First();
 
+            _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
             _textureManager["frame"] = _guideTextureProvider.GenerateListingTexture(listing, now);
         }
         catch (Exception ex)
@@ -170,24 +205,41 @@ public class Guide : IDisposable
 
     private void Render()
     {
-        _ = InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
+        SDL.SetRenderTarget(_renderer, IntPtr.Zero);
+
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, new SDL.Color { A = 255, R = 0, G = 0, B = 0 });
         _ = SDL.RenderClear(_renderer);
 
-        var frame = _textureManager["frame"];
-
-        if (frame != null)
+        using (_ = new RenderingTarget(_renderer, _textureManager["guide"]))
         {
-            _ = SDL.GetTextureSize(frame.SdlTexture, out var width, out var height);
-            var dstFRect = new SDL.FRect
-            {
-                X = 0,
-                Y = 0,
-                W = width,
-                H = height
-            };
+            InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
+            SDL.RenderClear(_renderer);
 
-            _ = SDL.RenderTexture(_renderer, frame.SdlTexture, IntPtr.Zero, dstFRect);
+            var frame = _textureManager["frame"];
+
+            if (frame != null)
+            {
+                _ = SDL.GetTextureSize(frame.SdlTexture, out var width, out var height);
+                var dstFRect = new SDL.FRect
+                {
+                    X = 0,
+                    Y = 0,
+                    W = width,
+                    H = height
+                };
+
+                _ = SDL.RenderTexture(_renderer, frame.SdlTexture, IntPtr.Zero, dstFRect);
+            }
         }
+
+        var guideFRect = new SDL.FRect
+        {
+            X = Configuration.X,
+            Y = Configuration.Y,
+            W = Configuration.DrawableWidth,
+            H = Configuration.DrawableHeight
+        };
+        _ = SDL.RenderTexture(_renderer, _textureManager["guide"].SdlTexture, IntPtr.Zero, guideFRect);
 
         _ = SDL.RenderPresent(_renderer);
     }

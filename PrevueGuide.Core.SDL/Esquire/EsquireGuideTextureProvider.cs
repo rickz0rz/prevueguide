@@ -28,7 +28,7 @@ public class EsquireGuideTextureProvider(ILogger logger) : IGuideTextureProvider
     public SDL3.SDL.Color DefaultGuideBackground => Colors.DefaultBlue; // Might remove this in favor of a "render background" method.
     public int DefaultWindowWidth => 716;
     public int DefaultWindowHeight => 436;
-    public bool FullscreenLetterbox => true;
+    public FullscreenMode DefaultFullscreenMode => FullscreenMode.Letterbox;
 
     public Texture GenerateListingTexture(Listing listing, DateTime firstColumnStartTime)
     {
@@ -114,30 +114,27 @@ public class EsquireGuideTextureProvider(ILogger logger) : IGuideTextureProvider
         // Calculate the height of the texture by determining the number of lines we're going to write.
 
         var texture = new Texture(_renderer, width, height);
-
-        var oldRenderTarget = SDL3.SDL.GetRenderTarget(_renderer);
-        _ = SDL3.SDL.SetRenderTarget(_renderer, texture.SdlTexture);
-
-        // This may change depending on what type of listing we're displaying (movie, sports, etc.)
-        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
-
-        _ = SDL3.SDL.RenderClear(_renderer);
-
-        switch (leftArrow)
+        using (_ = new RenderingTarget(_renderer, texture))
         {
-            case ArrowType.Single:
+            // This may change depending on what type of listing we're displaying (movie, sports, etc.)
+            _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
+
+            _ = SDL3.SDL.RenderClear(_renderer);
+
+            switch (leftArrow)
             {
-                DrawSingleLeftArrow();
-                break;
+                case ArrowType.Single:
+                {
+                    DrawSingleLeftArrow();
+                    break;
+                }
             }
+
+            // Draw text on the texture.
+
+            // Add a bevel.
+            Frame.CreateBevelOnTexture(_renderer, texture);
         }
-
-        // Draw text on the texture.
-
-        // Add a bevel.
-        Frame.CreateBevelOnTexture(_renderer, texture);
-
-        _ = SDL3.SDL.SetRenderTarget(_renderer, oldRenderTarget);
 
         return texture;
     }

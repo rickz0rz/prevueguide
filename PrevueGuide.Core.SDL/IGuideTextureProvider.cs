@@ -10,7 +10,7 @@ public interface IGuideTextureProvider
     SDL3.SDL.Color DefaultGuideBackground { get; }
     int DefaultWindowWidth { get; }
     int DefaultWindowHeight { get; }
-    bool FullscreenLetterbox { get; }
+    FullscreenMode DefaultFullscreenMode { get; }
 
     void SetRenderer(nint renderer);
     Texture GenerateListingTexture(Listing listing, DateTime firstColumnStartTime);

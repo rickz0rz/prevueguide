@@ -13,8 +13,8 @@ public class Texture : IDisposable
 
     public Texture(IntPtr renderer, int width, int height)
     {
-        var w = (int)(width * Configuration.Scale);
-        var h = (int)(height * Configuration.Scale);
+        var w = width * Configuration.Scale;
+        var h = height * Configuration.Scale;
         SdlTexture = SDL3.SDL.CreateTexture(renderer, SDL3.SDL.PixelFormat.RGBA8888, SDL3.SDL.TextureAccess.Target, w, h);
         _ = SDL3.SDL.SetTextureBlendMode(SdlTexture, SDL3.SDL.BlendMode.Blend);
     }
