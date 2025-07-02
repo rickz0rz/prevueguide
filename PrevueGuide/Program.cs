@@ -1,4 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using PrevueGuide.Core.Logging;
 
 using var loggerFactory = LoggerFactory.Create(builder =>
 {
@@ -6,7 +9,8 @@ using var loggerFactory = LoggerFactory.Create(builder =>
         .AddFilter("Microsoft", LogLevel.Warning)
         .AddFilter("System", LogLevel.Warning)
         .AddFilter("LoggingConsoleApp.Program", LogLevel.Debug)
-        .AddConsole();
+        .AddConsole()
+        .Services.TryAddEnumerable(ServiceDescriptor.Singleton<ILoggerProvider, ContainedLineLoggerProvider>());
 });
 
 var logger = loggerFactory.CreateLogger<Program>();

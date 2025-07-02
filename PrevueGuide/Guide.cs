@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using PrevueGuide.Core;
 using PrevueGuide.Core.Data.ChannelsDVR;
+using PrevueGuide.Core.Logging;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
 using PrevueGuide.Core.SDL.Wrappers;
@@ -12,32 +14,53 @@ public class Guide : IDisposable
 {
     private readonly ILogger _logger;
     private readonly TextureManager _textureManager;
+    private readonly FontManager _fontManager;
+    private readonly IGuideTextureProvider _guideTextureProvider;
+    private List<int> _frameTimes;
 
-    private IGuideTextureProvider _guideTextureProvider;
     private IntPtr _window;
     private IntPtr _renderer;
     private bool _running;
+    private bool _showLogs;
+    private bool _showFps;
     private bool _highDpi = true;
     private bool _vsync = true;
     private bool _fullscreen;
     private FullscreenMode _currentFullscreenMode;
+    private ContainedLineLogger _containedLineLogger;
 
     public Guide(ILogger logger)
     {
         _logger = logger;
         _textureManager = new TextureManager(logger);
+        _fontManager = new FontManager(logger);
         _guideTextureProvider = new EsquireGuideTextureProvider(_logger);
         _currentFullscreenMode = _guideTextureProvider.DefaultFullscreenMode;
+        _frameTimes  = [];
+
+        // For rendering on-screen logs.
+        _containedLineLogger = ContainedLineLoggerProvider.Logger;
     }
 
     public void Run()
     {
         Setup();
 
+        var stopWatch = new Stopwatch();
         while (_running)
         {
+            stopWatch.Start();
             PollEvents();
             Render();
+            stopWatch.Stop();
+
+            while (_frameTimes.Count >= 10)
+            {
+                _frameTimes.RemoveAt(0);
+            }
+            _frameTimes.Add(stopWatch.Elapsed.Milliseconds);
+
+            stopWatch.Reset();
         }
     }
 
@@ -80,6 +103,8 @@ public class Guide : IDisposable
     private void SetScaleFromWindowSize()
     {
         SDL.GetWindowSizeInPixels(_window, out var windowWidthPixels, out var windowHeightPixels);
+        Configuration.WindowWidth = windowWidthPixels;
+        Configuration.WindowHeight = windowHeightPixels;
         _logger.LogInformation(@"[Window] Window Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
 
         var rawWidthScale = (float)windowWidthPixels / _guideTextureProvider.DefaultWindowWidth;
@@ -165,7 +190,6 @@ public class Guide : IDisposable
             if (sdlEvent.Type == (uint)SDL.EventType.Quit)
             {
                 _logger.LogInformation("SDL: Quit event encountered.");
-                _running = false;
             }
             else if (sdlEvent.Type == (uint)SDL.EventType.KeyDown)
             {
@@ -174,6 +198,10 @@ public class Guide : IDisposable
                     case SDL.Keycode.F:
                         _fullscreen = !_fullscreen;
                         SetFullscreen();
+                        break;
+                    case SDL.Keycode.L:
+                        _showLogs = !_showLogs;
+                        _logger.LogInformation("Show logs: {ShowLogs}", _showLogs);
                         break;
                     case SDL.Keycode.M:
                         _currentFullscreenMode = _currentFullscreenMode switch
@@ -190,6 +218,13 @@ public class Guide : IDisposable
                             SetScaleFromWindowSize();
                             TestGenerateFrameTexture();
                         }
+                        break;
+                    case SDL.Keycode.Q:
+                        _running = false;
+                        break;
+                    case SDL.Keycode.P:
+                        _showFps = !_showFps;
+                        _logger.LogInformation("Show fps: {ShowFps}", _showFps);
                         break;
                     case SDL.Keycode.V:
                         _vsync = !_vsync;
@@ -274,7 +309,67 @@ public class Guide : IDisposable
         };
         _ = SDL.RenderTexture(_renderer, _textureManager["guide"].SdlTexture, IntPtr.Zero, guideFRect);
 
+        if (_showLogs)
+        {
+            RenderLogs();
+        }
+
+        if (_showFps)
+        {
+            RenderFps();
+        }
+
         _ = SDL.RenderPresent(_renderer);
+    }
+
+    private void RenderFps()
+    {
+        var font = _fontManager["FiraCode"];
+        var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
+
+        var fps = 1000 / _frameTimes.Average();
+        var l = $"{fps:0.00 FPS}";
+
+        using var surface = new Surface(TTF.RenderTextBlended(font, l, 0, yellow));
+        using var texture = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
+        SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
+
+        var rect = new SDL.FRect
+        {
+            W = width,
+            H = height,
+            X = Configuration.WindowWidth - width,
+            Y = 0
+        };
+
+        _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
+    }
+
+    private void RenderLogs()
+    {
+        var font = _fontManager["FiraCode"];
+        var lineHeight = _fontManager.FontConfigurations["FiraCode"].PointSize;
+
+        var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
+
+        var y = Configuration.WindowHeight - (lineHeight * Configuration.Scale * 5);
+
+        foreach (var line in _containedLineLogger.Lines)
+        {
+            using var surface = new Surface(TTF.RenderTextBlended(font, line, 0, yellow));
+            using var texture = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
+
+            SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
+            var rect = new SDL.FRect
+            {
+                W = width,
+                H = height,
+                X = Configuration.WindowWidth - width,
+                Y = y
+            };
+            _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
+            y += lineHeight * Configuration.Scale;
+        }
     }
 
     public void Dispose()

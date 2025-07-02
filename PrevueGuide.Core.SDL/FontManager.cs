@@ -12,6 +12,8 @@ public class FontManager : IDisposable
 
     public readonly Dictionary<string, FontConfiguration> FontConfigurations;
 
+    public nint this[string fontName] => this[(fontName, FontConfigurations[fontName].PointSize)];
+
     public nint this[(string fontName, int size) key]
     {
         get
@@ -21,10 +23,10 @@ public class FontManager : IDisposable
 
             if (!_openedFonts.ContainsKey(scaledKey))
             {
-                _logger.LogInformation("Font {fontName} has not been opened, opening at {size} pt (scaled: {scaledSize} pt)",
+                _logger.LogInformation("Font {fontName} @ {size} pt. (scaled: {scaledSize} pt.) has not been opened",
                     key.fontName, key.size, scaledSize);
                 var filename = FontConfigurations[key.fontName].Filename;
-                _logger.LogInformation("Opening font: {filename}", filename);
+                _logger.LogInformation("Opening font {filename} @ {scaledSize} pt", filename, scaledSize);
                 _openedFonts.TryAdd(scaledKey, SDL3.TTF.OpenFont(filename, scaledKey.size));
             }
 
