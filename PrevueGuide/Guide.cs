@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using PrevueGuide.Core;
 using PrevueGuide.Core.Data.ChannelsDVR;
-using PrevueGuide.Core.Model;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
 using PrevueGuide.Core.SDL.Wrappers;
@@ -21,13 +20,14 @@ public class Guide : IDisposable
     private bool _highDpi = true;
     private bool _vsync = true;
     private bool _fullscreen;
+    private FullscreenMode _currentFullscreenMode;
 
     public Guide(ILogger logger)
     {
         _logger = logger;
         _textureManager = new TextureManager(logger);
-
         _guideTextureProvider = new EsquireGuideTextureProvider(_logger);
+        _currentFullscreenMode = _guideTextureProvider.DefaultFullscreenMode;
     }
 
     public void Run()
@@ -90,7 +90,7 @@ public class Guide : IDisposable
         Configuration.Scale = (int)float.Floor(smallerScale);
         _logger.LogInformation(@"[Window] Scale: {Scale}x", Configuration.Scale);
 
-        if (_guideTextureProvider.DefaultFullscreenMode == FullscreenMode.Letterbox)
+        if (_currentFullscreenMode == FullscreenMode.Letterbox)
         {
             _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.Letterbox}");
 
@@ -101,6 +101,26 @@ public class Guide : IDisposable
 
             Configuration.X = (windowWidthPixels - Configuration.DrawableWidth) / 2;
             Configuration.Y = (windowHeightPixels - Configuration.DrawableHeight) / 2;
+            _logger.LogInformation(@"[Window] Offset: {Width} x {Height}", Configuration.X, Configuration.Y);
+
+            Configuration.RenderedWidth = Configuration.DrawableWidth;
+            Configuration.RenderedHeight = Configuration.DrawableHeight;
+        }
+        else if (_currentFullscreenMode == FullscreenMode.ZoomedFill)
+        {
+            _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.ZoomedFill}");
+
+            Configuration.DrawableWidth = Configuration.Scale * _guideTextureProvider.DefaultWindowWidth;
+            Configuration.DrawableHeight = Configuration.Scale * _guideTextureProvider.DefaultWindowHeight;
+            _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
+                Configuration.DrawableHeight);
+
+            Configuration.RenderedWidth = (int)(smallerScale * _guideTextureProvider.DefaultWindowWidth);
+            Configuration.RenderedHeight = (int)(smallerScale * _guideTextureProvider.DefaultWindowHeight);
+            _logger.LogInformation(@"[Window] Rendered: {Width} x {Height}", Configuration.RenderedWidth, Configuration.RenderedHeight);
+
+            Configuration.X = (windowWidthPixels - Configuration.RenderedWidth) / 2;
+            Configuration.Y = (windowHeightPixels - Configuration.RenderedHeight) / 2;
             _logger.LogInformation(@"[Window] Offset: {Width} x {Height}", Configuration.X, Configuration.Y);
         }
         else // Default: ScaledFill
@@ -115,6 +135,9 @@ public class Guide : IDisposable
             Configuration.X = 0;
             Configuration.Y = 0;
             _logger.LogInformation(@"[Window] Offset: {Width} x {Height}", Configuration.X, Configuration.Y);
+
+            Configuration.RenderedWidth = Configuration.DrawableWidth;
+            Configuration.RenderedHeight = Configuration.DrawableHeight;
         }
     }
 
@@ -151,6 +174,24 @@ public class Guide : IDisposable
                     case SDL.Keycode.F:
                         _fullscreen = !_fullscreen;
                         SetFullscreen();
+                        break;
+                    case SDL.Keycode.M:
+                        ChangeFullScreenMode();
+
+                        _currentFullscreenMode = _currentFullscreenMode switch
+                        {
+                            FullscreenMode.ScaledFill => FullscreenMode.ZoomedFill,
+                            FullscreenMode.ZoomedFill => FullscreenMode.Letterbox,
+                            _ => FullscreenMode.ScaledFill
+                        };
+
+                        _logger.LogInformation("Fullscreen mode change: {FullscreenMode}", _currentFullscreenMode);
+
+                        if (_fullscreen)
+                        {
+                            SetScaleFromWindowSize();
+                            TestGenerateFrameTexture();
+                        }
                         break;
                     case SDL.Keycode.V:
                         _vsync = !_vsync;
@@ -230,8 +271,8 @@ public class Guide : IDisposable
         {
             X = Configuration.X,
             Y = Configuration.Y,
-            W = Configuration.DrawableWidth,
-            H = Configuration.DrawableHeight
+            W = Configuration.RenderedWidth,
+            H = Configuration.RenderedHeight
         };
         _ = SDL.RenderTexture(_renderer, _textureManager["guide"].SdlTexture, IntPtr.Zero, guideFRect);
 
