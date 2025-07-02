@@ -10,6 +10,8 @@ using SDL3;
 
 namespace PrevueGuide;
 
+// Clean up the amount of texture generation going on. That stuff kills performance.
+
 public class Guide : IDisposable
 {
     private readonly ILogger _logger;
@@ -234,8 +236,6 @@ public class Guide : IDisposable
             }
             else if (sdlEvent.Type == (uint)SDL.EventType.WindowPixelSizeChanged)
             {
-                // Todo: On pixel size change, determine from the window resolution
-                // if we can crop out the side or top/bottom margins to match the expected aspect ratio.
                 SetScaleFromWindowSize();
                 TestGenerateFrameTexture();
             }
@@ -347,6 +347,8 @@ public class Guide : IDisposable
 
     private void RenderLogs()
     {
+        // This is pretty inefficient. We shouldn't be creating and rendering textures if the logs
+        // haven't changed.
         var font = _fontManager["FiraCode"];
         var lineHeight = _fontManager.FontConfigurations["FiraCode"].PointSize;
 
