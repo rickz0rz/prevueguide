@@ -192,6 +192,7 @@ public class Guide : IDisposable
             if (sdlEvent.Type == (uint)SDL.EventType.Quit)
             {
                 _logger.LogInformation("SDL: Quit event encountered.");
+                _running = false;
             }
             else if (sdlEvent.Type == (uint)SDL.EventType.KeyDown)
             {
