@@ -176,8 +176,6 @@ public class Guide : IDisposable
                         SetFullscreen();
                         break;
                     case SDL.Keycode.M:
-                        ChangeFullScreenMode();
-
                         _currentFullscreenMode = _currentFullscreenMode switch
                         {
                             FullscreenMode.ScaledFill => FullscreenMode.ZoomedFill,
