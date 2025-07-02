@@ -72,5 +72,11 @@
     "PointSize": 23,
     "XOffset": -1,
     "YOffset": -7
+  },
+  "FiraCode": {
+    "Filename": "assets/fonts/FiraCode-Regular.ttf",
+    "PointSize": 14,
+    "XOffset": 0,
+    "YOffset": 0
   }
 }
