@@ -172,11 +172,7 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
             }
 
             // Draw text on the texture.
-            var openedTtfFont = SDL3.TTF.OpenFont("assets/fonts/PrevueGrid.ttf", 25 * Configuration.Scale);
-
-            var openedTtfFont2 = _fontManager[("PrevueGrid", 25)];
-
-            using (var listingLine = new Texture(GenerateDropShadowText(_renderer, openedTtfFont2,
+            using (var listingLine = new Texture(GenerateDropShadowText(_renderer, _fontManager["PrevueGrid"],
                        RenderListing(listing), Colors.Gray170, Configuration.Scale)))
             {
                 SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
@@ -190,8 +186,6 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
 
                 SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
             }
-
-            SDL3.TTF.CloseFont(openedTtfFont);
 
             // Add a bevel.
             Frame.CreateBevelOnTexture(_renderer, texture);

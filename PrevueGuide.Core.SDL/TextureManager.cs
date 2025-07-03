@@ -7,18 +7,25 @@ namespace PrevueGuide.Core.SDL;
 public class TextureManager : IDisposable
 {
     private readonly ILogger _logger;
-    private readonly ConcurrentDictionary<string, Texture?> _textureMap;
+    private readonly ConcurrentDictionary<string, Texture> _textureMap;
 
     public Texture? this[string key]
     {
         get => _textureMap[key];
-        set => _textureMap[key] = value;
+        set
+        {
+            if (_textureMap.TryGetValue(key, out var texture))
+            {
+                texture?.Dispose();
+            }
+            _textureMap[key] = value;
+        }
     }
 
     public TextureManager(ILogger logger)
     {
         _logger = logger;
-        _textureMap = new ConcurrentDictionary<string, Texture?>();
+        _textureMap = new ConcurrentDictionary<string, Texture>();
     }
 
     public void PurgeTexture(string key)

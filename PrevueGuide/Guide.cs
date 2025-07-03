@@ -18,7 +18,9 @@ public class Guide : IDisposable
     private readonly TextureManager _textureManager;
     private readonly FontManager _fontManager;
     private readonly IGuideTextureProvider _guideTextureProvider;
+
     private List<int> _frameTimes;
+    private int _updateFPSCounter;
 
     private IntPtr _window;
     private IntPtr _renderer;
@@ -29,7 +31,9 @@ public class Guide : IDisposable
     private bool _vsync = true;
     private bool _fullscreen;
     private FullscreenMode _currentFullscreenMode;
+
     private ContainedLineLogger _containedLineLogger;
+    private long _lastLinesLoggedCount = -1;
 
     public Guide(ILogger logger)
     {
@@ -78,7 +82,7 @@ public class Guide : IDisposable
         _window = SDL.CreateWindow("Prevue Guide",
             _guideTextureProvider.DefaultWindowWidth,
             _guideTextureProvider.DefaultWindowHeight,
-            _highDpi ? SDL.WindowFlags.HighPixelDensity : 0);
+            _highDpi ? SDL.WindowFlags.HighPixelDensity | SDL.WindowFlags.Metal : SDL.WindowFlags.Metal);
 
         if (_window == IntPtr.Zero)
         {
@@ -256,11 +260,11 @@ public class Guide : IDisposable
             provider.PrevueChannelNumber = null;
             var startTime = Core.Utilities.Time.ClampToNextHalfHourIfTenMinutesAway(now);
             var endTime = startTime.AddMinutes(90);
-            var listings = provider.GetChannelListings(startTime, endTime).Result;
+            var listings = provider.GetChannelListings(startTime, endTime).Result.ToList();
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-            _textureManager["frame1"] = _guideTextureProvider.GenerateListingTexture(listings.First(), now);
-            _textureManager["frame2"] = _guideTextureProvider.GenerateListingTexture(listings.Skip(1).First(), now);
+            _textureManager["frame1"] = _guideTextureProvider.GenerateListingTexture(listings[0], now);
+            _textureManager["frame2"] = _guideTextureProvider.GenerateListingTexture(listings[1], now);
         }
         catch (Exception ex)
         {
@@ -275,30 +279,32 @@ public class Guide : IDisposable
         _ = InternalSDL3.SetRenderDrawColor(_renderer, new SDL.Color { A = 255, R = 0, G = 0, B = 0 });
         _ = SDL.RenderClear(_renderer);
 
-        using (_ = new RenderingTarget(_renderer, _textureManager["guide"]))
+        if (_textureManager["guide"] != null)
         {
-            InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
-            SDL.RenderClear(_renderer);
-
-            foreach (var t in new[] { ("frame1", 0), ("frame2", 56 * Configuration.Scale) })
+            using (_ = new RenderingTarget(_renderer, _textureManager["guide"]))
             {
-                var frame1 = _textureManager[t.Item1];
+                InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
+                SDL.RenderClear(_renderer);
 
-                if (frame1 != null)
+                foreach (var t in new[] { ("frame1", 0), ("frame2", 56 * Configuration.Scale) })
                 {
-                    _ = SDL.GetTextureSize(frame1.SdlTexture, out var width, out var height);
-                    var dstFRect = new SDL.FRect
-                    {
-                        X = 0,
-                        Y = t.Item2,
-                        W = width,
-                        H = height
-                    };
+                    var frame1 = _textureManager[t.Item1];
 
-                    _ = SDL.RenderTexture(_renderer, frame1.SdlTexture, IntPtr.Zero, dstFRect);
+                    if (frame1 != null)
+                    {
+                        _ = SDL.GetTextureSize(frame1.SdlTexture, out var width, out var height);
+                        var dstFRect = new SDL.FRect
+                        {
+                            X = 0,
+                            Y = t.Item2,
+                            W = width,
+                            H = height
+                        };
+
+                        _ = SDL.RenderTexture(_renderer, frame1.SdlTexture, IntPtr.Zero, dstFRect);
+                    }
                 }
             }
-
         }
 
         var guideFRect = new SDL.FRect
@@ -325,43 +331,67 @@ public class Guide : IDisposable
 
     private void RenderFps()
     {
-        var font = _fontManager["FiraCode"];
-        var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
-
-        var fps = 1000 / _frameTimes.Average();
-        var l = $"{fps:0.00 FPS}";
-
-        using var surface = new Surface(TTF.RenderTextBlended(font, l, 0, yellow));
-        using var texture = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
-        SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
-
-        var rect = new SDL.FRect
+        if (_updateFPSCounter == 0)
         {
-            W = width,
-            H = height,
-            X = Configuration.WindowWidth - width,
-            Y = 0
-        };
+            _updateFPSCounter = 30;
 
-        _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
+            var font = _fontManager["FiraCode"];
+            var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
+
+            var fps = 1000 / _frameTimes.Average();
+            var l = $"{fps:0.00 FPS}";
+
+            using var surface = new Surface(TTF.RenderTextBlended(font, l, 0, yellow));
+
+            _textureManager["fps"] = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
+        }
+        else
+        {
+            _updateFPSCounter--;
+        }
+
+        if (_textureManager["fps"] != null)
+        {
+            var texture = _textureManager["fps"];
+
+            SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
+            var rect = new SDL.FRect
+            {
+                W = width,
+                H = height,
+                X = Configuration.WindowWidth - width,
+                Y = 0
+            };
+
+            _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
+        }
+
     }
 
     private void RenderLogs()
     {
-        // This is pretty inefficient. We shouldn't be creating and rendering textures if the logs
-        // haven't changed.
-        var font = _fontManager["FiraCode"];
-        var lineHeight = _fontManager.FontConfigurations["FiraCode"].PointSize;
+        const string firaCodeFontName = "FiraCode";
+        if (_lastLinesLoggedCount != _containedLineLogger.LinesLogged)
+        {
+            _lastLinesLoggedCount = _containedLineLogger.LinesLogged;
 
-        var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
+            var font = _fontManager[firaCodeFontName];
+            var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
 
+            for (var i = 0; i < _containedLineLogger.Lines.Count; i++)
+            {
+                var line = _containedLineLogger.Lines[i];
+                using var surface = new Surface(TTF.RenderTextBlended(font, line, 0, yellow));
+                _textureManager[$"log_{i}"] = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
+            }
+        }
+
+        var lineHeight = _fontManager.FontConfigurations[firaCodeFontName].PointSize;
         var y = Configuration.WindowHeight - (lineHeight * Configuration.Scale * 5);
 
-        foreach (var line in _containedLineLogger.Lines)
+        for (var i = 0; i < _containedLineLogger.Lines.Count; i++)
         {
-            using var surface = new Surface(TTF.RenderTextBlended(font, line, 0, yellow));
-            using var texture = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
-
+            var texture = _textureManager[$"log_{i}"];
             SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
             var rect = new SDL.FRect
             {

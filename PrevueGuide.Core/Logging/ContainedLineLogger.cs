@@ -6,8 +6,11 @@ namespace PrevueGuide.Core.Logging;
 public class ContainedLineLogger : ILogger
 {
     public List<string> Lines { get; }
+    public long LinesLogged => _linesLogged;
 
     private readonly int _maximumLineCount;
+
+    private long _linesLogged;
 
     public ContainedLineLogger(int maximumLineCount = 5)
     {
@@ -22,6 +25,7 @@ public class ContainedLineLogger : ILogger
             Lines.RemoveAt(0);
         }
         Lines.Add(line);
+        _linesLogged++;
     }
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
