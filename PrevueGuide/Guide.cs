@@ -11,6 +11,10 @@ using SDL3;
 namespace PrevueGuide;
 
 // Clean up the amount of texture generation going on. That stuff kills performance.
+// Texture providers should generate an entire row (channel label, and all the columns)
+// How do I handle the date rollover? That's not really a row per-se
+// Make multiple providers (guide logo, copyright, "sbs", now playing on plex, etc.)
+// How do we orchestrate said providers?
 
 public class Guide : IDisposable
 {
@@ -263,8 +267,8 @@ public class Guide : IDisposable
             var listings = provider.GetChannelListings(startTime, endTime).Result.ToList();
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-            _textureManager["frame1"] = _guideTextureProvider.GenerateListingTexture(listings[0], now);
-            _textureManager["frame2"] = _guideTextureProvider.GenerateListingTexture(listings[1], now);
+            _textureManager["frame1"] = _guideTextureProvider.GenerateListingTexture(listings[0], startTime);
+            _textureManager["frame2"] = _guideTextureProvider.GenerateListingTexture(listings[1], startTime);
         }
         catch (Exception ex)
         {

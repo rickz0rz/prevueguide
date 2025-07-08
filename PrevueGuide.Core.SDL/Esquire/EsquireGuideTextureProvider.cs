@@ -154,6 +154,7 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
             _ = SDL3.SDL.RenderClear(_renderer);
 
             var leftMargin = 0;
+            var rightMargin = 0;
 
             switch (leftArrow)
             {
@@ -171,6 +172,22 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
                 }
             }
 
+            switch (rightArrow)
+            {
+                case ArrowType.Single:
+                {
+                    DrawSingleRightArrow(width);
+                    rightMargin = SingleArrowWidth;
+                    break;
+                }
+                case ArrowType.Double:
+                {
+                    DrawDoubleRightArrow(width);
+                    rightMargin = DoubleArrowWidth;
+                    break;
+                }
+            }
+
             // Draw text on the texture.
             using (var listingLine = new Texture(GenerateDropShadowText(_renderer, _fontManager["PrevueGrid"],
                        RenderListing(listing), Colors.Gray170, Configuration.Scale)))
@@ -180,7 +197,7 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
                 {
                     X = (5 + leftMargin) * Configuration.Scale,
                     Y = 5 * Configuration.Scale,
-                    W = w,
+                    W = w - ((leftMargin + rightMargin) * Configuration.Scale),
                     H = h
                 };
 
@@ -245,6 +262,58 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
         _ = InternalSDL3.RenderGeometry(_renderer, IntPtr.Zero, arrowGrayVertices, null);
     }
 
+    private void DrawSingleRightArrow(int width)
+    {
+        var startPositionBlack = width - SingleArrowWidth - 5;
+        // Draw black.
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black17);
+
+        var arrowBlackVertices = new List<ScaledVertex>
+        {
+            new()
+            {
+                Color = Colors.Black17.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack, Y = 5 } // 15, 0
+            },
+            new()
+            {
+                Color = Colors.Black17.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 15, Y = 30 } // 0, 25
+            },
+            new()
+            {
+                Color = Colors.Black17.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack, Y = 55 } // 15, 50
+            }
+        };
+
+        _ = InternalSDL3.RenderGeometry(_renderer, IntPtr.Zero, arrowBlackVertices, null);
+
+        // Draw gray.
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Gray170);
+
+        var arrowGrayVertices = new List<ScaledVertex>
+        {
+            new()
+            {
+                Color = Colors.Gray170.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 1, Y = 7 } // 1, 2
+            },
+            new()
+            {
+                Color = Colors.Gray170.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 14, Y = 30 } // 14, 25
+            },
+            new()
+            {
+                Color = Colors.Gray170.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 1, Y = 53 } // 1, 48
+            }
+        };
+
+        _ = InternalSDL3.RenderGeometry(_renderer, IntPtr.Zero, arrowGrayVertices, null);
+    }
+
     private void DrawDoubleLeftArrow()
     {
         DrawSingleLeftArrow();
@@ -266,6 +335,59 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
             {
                 Color = Colors.Black17.ToFColor(),
                 Position = new ScaledFPoint { X = 28, Y = 55 } // 23, 50
+            }
+        };
+
+        _ = InternalSDL3.RenderGeometry(_renderer, IntPtr.Zero, arrowBlackVertices, null);
+
+        // Draw gray.
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Gray170);
+
+        var arrowGrayVertices = new List<ScaledVertex>
+        {
+            new()
+            {
+                Color = Colors.Gray170.ToFColor(),
+                Position = new ScaledFPoint { X = 27, Y = 7 } // 22, 2
+            },
+            new()
+            {
+                Color = Colors.Gray170.ToFColor(),
+                Position = new ScaledFPoint { X = 15, Y = 30 } // 10, 25
+            },
+            new()
+            {
+                Color = Colors.Gray170.ToFColor(),
+                Position = new ScaledFPoint { X = 27, Y = 53 } // 22, 48
+            }
+        };
+
+        _ = InternalSDL3.RenderGeometry(_renderer, IntPtr.Zero, arrowGrayVertices, null);
+    }
+
+    private void DrawDoubleRightArrow(int width)
+    {
+        DrawSingleRightArrow(width);
+
+        var startPositionBlack = width - DoubleArrowWidth - 5;
+
+        // Draw right arrow black
+        var arrowBlackVertices = new List<ScaledVertex>
+        {
+            new()
+            {
+                Color = Colors.Black17.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 23, Y = 5 } // 23, 0
+            },
+            new()
+            {
+                Color = Colors.Black17.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 8, Y = 30 } // 8, 25
+            },
+            new()
+            {
+                Color = Colors.Black17.ToFColor(),
+                Position = new ScaledFPoint { X = startPositionBlack + 23, Y = 55 } // 23, 50
             }
         };
 

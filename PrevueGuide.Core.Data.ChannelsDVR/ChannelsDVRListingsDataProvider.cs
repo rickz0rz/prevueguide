@@ -34,7 +34,10 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
     {
         var lineUpEntries = new List<LineUpEntry>();
         var stationIds = new List<string>();
+
+        _logger.LogInformation("Fetching lineup entries...");
         var channels = await GetChannels();
+        _logger.LogInformation("Lineup retrieved.");
 
         if (PrevueChannelNumber.HasValue)
         {
@@ -83,7 +86,10 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
     public async Task<IEnumerable<Listing>> GetChannelListings(DateTime startTime, DateTime endTime)
     {
         var listings = new List<Listing>();
+
+        _logger.LogInformation("Fetching guide entries...");
         var guide = await GetGuide();
+        _logger.LogInformation("Guide retrieved.");
 
         if (PrevueChannelNumber.HasValue)
         {
