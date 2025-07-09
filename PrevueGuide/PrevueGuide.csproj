@@ -260,8 +260,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\PrevueGuide.Core.Data.ChannelsDVR\PrevueGuide.Core.Data.ChannelsDVR.csproj" />
-      <ProjectReference Include="..\PrevueGuide.Core.Data.LocalMemory\PrevueGuide.Core.Data.LocalMemory.csproj" />
-      <ProjectReference Include="..\PrevueGuide.Core.Data.SQLite\PrevueGuide.Core.Data.SQLite.csproj" />
       <ProjectReference Include="..\PrevueGuide.Core.SDL\PrevueGuide.Core.SDL.csproj" />
       <ProjectReference Include="..\PrevueGuide.Core\PrevueGuide.Core.csproj" />
       <ProjectReference Include="..\XmlTv\XmlTv.csproj" />

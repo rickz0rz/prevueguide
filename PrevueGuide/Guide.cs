@@ -11,17 +11,19 @@ using SDL3;
 namespace PrevueGuide;
 
 // Clean up the amount of texture generation going on. That stuff kills performance.
-// Texture providers should generate an entire row (channel label, and all the columns)
-// How do I handle the date rollover? That's not really a row per-se
 // Make multiple providers (guide logo, copyright, "sbs", now playing on plex, etc.)
 // How do we orchestrate said providers?
+// Mark textures dirty? (Time)
+// How do I manage caching of guide entries? Do I just regenerate the textures every time the guide time will roll-over?
+// If so, can we do something to make it so we can procedurally create the textures instead of doing them all in one-shot to make the delay less obvious?
+// At any given time, we need enough guide elements to render the whole screen filled. The guide is presented by being shifted down (or up?) a specific amount.
 
 public class Guide : IDisposable
 {
     private readonly ILogger _logger;
     private readonly TextureManager _textureManager;
     private readonly FontManager _fontManager;
-    private readonly IGuideTextureProvider _guideTextureProvider;
+    private readonly IGuideThemeProvider _guideThemeProvider;
 
     private List<int> _frameTimes;
     private int _updateFPSCounter;
@@ -44,8 +46,8 @@ public class Guide : IDisposable
         _logger = logger;
         _textureManager = new TextureManager(logger);
         _fontManager = new FontManager(logger);
-        _guideTextureProvider = new EsquireGuideTextureProvider(_logger);
-        _currentFullscreenMode = _guideTextureProvider.DefaultFullscreenMode;
+        _guideThemeProvider = new EsquireGuideThemeProvider(_logger);
+        _currentFullscreenMode = _guideThemeProvider.DefaultFullscreenMode;
         _frameTimes  = [];
 
         // For rendering on-screen logs.
@@ -84,8 +86,8 @@ public class Guide : IDisposable
         _ = TTF.Init();
 
         _window = SDL.CreateWindow("Prevue Guide",
-            _guideTextureProvider.DefaultWindowWidth,
-            _guideTextureProvider.DefaultWindowHeight,
+            _guideThemeProvider.DefaultWindowWidth,
+            _guideThemeProvider.DefaultWindowHeight,
             _highDpi ? SDL.WindowFlags.HighPixelDensity | SDL.WindowFlags.Metal : SDL.WindowFlags.Metal);
 
         if (_window == IntPtr.Zero)
@@ -101,7 +103,7 @@ public class Guide : IDisposable
             throw new Exception($"There was an issue creating the renderer. {SDL.GetError()}");
         }
 
-        _guideTextureProvider.SetRenderer(_renderer);
+        _guideThemeProvider.SetRenderer(_renderer);
 
         SetFullscreen();
         SetVSync();
@@ -117,8 +119,8 @@ public class Guide : IDisposable
         Configuration.WindowHeight = windowHeightPixels;
         _logger.LogInformation(@"[Window] Window Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
 
-        var rawWidthScale = (float)windowWidthPixels / _guideTextureProvider.DefaultWindowWidth;
-        var rawHeightScale = (float)windowHeightPixels / _guideTextureProvider.DefaultWindowHeight;
+        var rawWidthScale = (float)windowWidthPixels / _guideThemeProvider.DefaultWindowWidth;
+        var rawHeightScale = (float)windowHeightPixels / _guideThemeProvider.DefaultWindowHeight;
         _logger.LogInformation(@"[Window] Scales: {Width} x {Height}", rawWidthScale, rawHeightScale);
 
         var smallerScale = rawWidthScale > rawHeightScale ? rawHeightScale : rawWidthScale;
@@ -129,8 +131,8 @@ public class Guide : IDisposable
         {
             _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.Letterbox}");
 
-            Configuration.DrawableWidth = Configuration.Scale * _guideTextureProvider.DefaultWindowWidth;
-            Configuration.DrawableHeight = Configuration.Scale * _guideTextureProvider.DefaultWindowHeight;
+            Configuration.DrawableWidth = Configuration.Scale * _guideThemeProvider.DefaultWindowWidth;
+            Configuration.DrawableHeight = Configuration.Scale * _guideThemeProvider.DefaultWindowHeight;
             _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
                 Configuration.DrawableHeight);
 
@@ -145,13 +147,13 @@ public class Guide : IDisposable
         {
             _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.ZoomedFill}");
 
-            Configuration.DrawableWidth = Configuration.Scale * _guideTextureProvider.DefaultWindowWidth;
-            Configuration.DrawableHeight = Configuration.Scale * _guideTextureProvider.DefaultWindowHeight;
+            Configuration.DrawableWidth = Configuration.Scale * _guideThemeProvider.DefaultWindowWidth;
+            Configuration.DrawableHeight = Configuration.Scale * _guideThemeProvider.DefaultWindowHeight;
             _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
                 Configuration.DrawableHeight);
 
-            Configuration.RenderedWidth = (int)(smallerScale * _guideTextureProvider.DefaultWindowWidth);
-            Configuration.RenderedHeight = (int)(smallerScale * _guideTextureProvider.DefaultWindowHeight);
+            Configuration.RenderedWidth = (int)(smallerScale * _guideThemeProvider.DefaultWindowWidth);
+            Configuration.RenderedHeight = (int)(smallerScale * _guideThemeProvider.DefaultWindowHeight);
             _logger.LogInformation(@"[Window] Rendered: {Width} x {Height}", Configuration.RenderedWidth, Configuration.RenderedHeight);
 
             Configuration.X = (windowWidthPixels - Configuration.RenderedWidth) / 2;
@@ -255,20 +257,17 @@ public class Guide : IDisposable
     {
         try
         {
-            _textureManager.PurgeTexture("frame1");
-            _textureManager.PurgeTexture("frame2");
+            _textureManager.PurgeTexture("row1");
+            // _textureManager.PurgeTexture("frame2");
             _textureManager.PurgeTexture("guide");
 
             var now = DateTime.Now;
             var provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
             provider.PrevueChannelNumber = null;
-            var startTime = Core.Utilities.Time.ClampToNextHalfHourIfTenMinutesAway(now);
-            var endTime = startTime.AddMinutes(90);
-            var listings = provider.GetChannelListings(startTime, endTime).Result.ToList();
+            var listings = provider.GetEntries().ToBlockingEnumerable();
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-            _textureManager["frame1"] = _guideTextureProvider.GenerateListingTexture(listings[0], startTime);
-            _textureManager["frame2"] = _guideTextureProvider.GenerateListingTexture(listings[1], startTime);
+            _textureManager["row1"] = _guideThemeProvider.GenerateRows(listings).First();
         }
         catch (Exception ex)
         {
@@ -287,16 +286,16 @@ public class Guide : IDisposable
         {
             using (_ = new RenderingTarget(_renderer, _textureManager["guide"]))
             {
-                InternalSDL3.SetRenderDrawColor(_renderer, _guideTextureProvider.DefaultGuideBackground);
+                InternalSDL3.SetRenderDrawColor(_renderer, _guideThemeProvider.DefaultGuideBackground);
                 SDL.RenderClear(_renderer);
 
-                foreach (var t in new[] { ("frame1", 0), ("frame2", 56 * Configuration.Scale) })
+                foreach (var t in new[] { ("row1", 0) })
                 {
-                    var frame1 = _textureManager[t.Item1];
+                    var row1 = _textureManager[t.Item1];
 
-                    if (frame1 != null)
+                    if (row1 != null)
                     {
-                        _ = SDL.GetTextureSize(frame1.SdlTexture, out var width, out var height);
+                        _ = SDL.GetTextureSize(row1.SdlTexture, out var width, out var height);
                         var dstFRect = new SDL.FRect
                         {
                             X = 0,
@@ -305,7 +304,7 @@ public class Guide : IDisposable
                             H = height
                         };
 
-                        _ = SDL.RenderTexture(_renderer, frame1.SdlTexture, IntPtr.Zero, dstFRect);
+                        _ = SDL.RenderTexture(_renderer, row1.SdlTexture, IntPtr.Zero, dstFRect);
                     }
                 }
             }

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using PrevueGuide.Core.Model;
+using PrevueGuide.Core.Model.Listings;
+using PrevueGuide.Core.Model.Listings.Channel;
 using PrevueGuide.Core.Utilities;
 
 namespace PrevueGuide.Core.Data.ChannelsDVR;
@@ -14,8 +15,6 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
     {
         _logger = logger;
         _address = address;
-
-        GetChannels().Wait();
     }
 
     public bool RequiresManualUpdating => false;
@@ -25,67 +24,11 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
     {
     }
 
-    public Task AddChannelToLineup(string id, string channelNumber, string callSign)
+    public async IAsyncEnumerable<IListing> GetEntries()
     {
-        throw new NotImplementedException();
-    }
-
-    public async Task<IEnumerable<LineUpEntry>> GetChannelLineup()
-    {
-        var lineUpEntries = new List<LineUpEntry>();
-        var stationIds = new List<string>();
-
-        _logger.LogInformation("Fetching lineup entries...");
-        var channels = await GetChannels();
-        _logger.LogInformation("Lineup retrieved.");
-
-        if (PrevueChannelNumber.HasValue)
-        {
-            lineUpEntries.Add(new LineUpEntry
-            {
-                CallSign = "PREVUE",
-                ChannelNumber = $"{PrevueChannelNumber.Value}",
-                Id = "PREVUE"
-            });
-        }
-
-        foreach (var channelElement in channels.RootElement.EnumerateArray())
-            if (channelElement.TryGetProperty("station_id", out var stationElement))
-            {
-                var stationId = stationElement.GetString();
-
-                if (stationIds.Contains(stationId))
-                    continue;
-
-                stationIds.Add(stationId);
-
-                var lineUpEntry = new LineUpEntry
-                {
-                    CallSign = channelElement.GetProperty("name").GetString(),
-                    ChannelNumber = channelElement.GetProperty("number").GetString(),
-                    Id = channelElement.GetProperty("station_id").GetString()
-                };
-
-                lineUpEntries.Add(lineUpEntry);
-            }
-            else
-            {
-                Console.WriteLine(": " + channelElement);
-            }
-
-        return lineUpEntries;
-    }
-
-    public Task AddChannelListing(
-        List<(string channelId, string title, string category, string description, string year, string rating, string
-            subtitled, DateTime startTime, DateTime endTime)> listings)
-    {
-        throw new NotImplementedException();
-    }
-
-    public async Task<IEnumerable<Listing>> GetChannelListings(DateTime startTime, DateTime endTime)
-    {
-        var listings = new List<Listing>();
+        // Get the current time to determine the half-hours we're showing.
+        var now = DateTime.Now;
+        var startTime = Time.ClampToNextHalfHourIfTenMinutesAway(now);
 
         _logger.LogInformation("Fetching guide entries...");
         var guide = await GetGuide();
@@ -93,29 +36,43 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 
         if (PrevueChannelNumber.HasValue)
         {
-            listings.Add(new Listing
+            yield return new ChannelListing
             {
-                StartTime = DateTime.Now.AddHours(-4),
-                EndTime = DateTime.Now.AddHours(4),
-                Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
-                ChannelId = "PREVUE",
-                Block = Time.CalculateBlockNumber(DateTime.Now)
-            });
+                CallSign = "PREVUE",
+                ChannelNumber = "1",
+                FirstColumnStartTime = startTime,
+                Programs =
+                [
+                    new Program()
+                    {
+                        StartTime = now.AddHours(-4),
+                        EndTime = now.AddHours(4),
+                        Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!")
+                    }
+                ]
+            };
         }
 
         foreach (var guideElement in guide.RootElement.EnumerateArray())
         {
-            var airingsElement = guideElement.GetProperty("Airings");
-
             var channelElement = guideElement.GetProperty("Channel");
 
-            foreach (var airingElement in airingsElement.EnumerateArray())
+            var channelListing = new ChannelListing
+            {
+                CallSign = channelElement.GetProperty("CallSign").GetString(),
+                ChannelNumber = channelElement.GetProperty("Number").GetString(),
+                FirstColumnStartTime = startTime,
+                Programs = []
+            };
+
+            foreach (var airingElement in guideElement.GetProperty("Airings").EnumerateArray())
             {
                 var start = airingElement.GetProperty("Time").GetInt64();
                 var offset = DateTimeOffset.FromUnixTimeSeconds(start);
                 var startDateTime = offset.LocalDateTime;
                 var duration = airingElement.GetProperty("Duration").GetInt32();
                 var endDateTime = startDateTime.AddSeconds(duration);
+                var endTime = startTime.AddMinutes(90); // make this dynamic depending on the width in the configuration.
 
                 if ((startDateTime < startTime && endDateTime > startTime && endDateTime <= endTime) ||
                     (startDateTime >= startTime && startDateTime < endTime && endDateTime > startTime && endDateTime <= endTime) ||
@@ -123,39 +80,36 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                     (startDateTime < startTime && endDateTime > endTime))
                     try
                     {
-                        var channelId = channelElement.GetProperty("ChannelID").GetString();
+                        var hasTags = airingElement.TryGetProperty("Tags", out var tags);
+                        var isMovie = airingElement.TryGetProperty("MovieID", out _);
 
-                        if (channelElement.TryGetProperty("Station", out var stationElement))
-                        {
-                            channelId = stationElement.GetString();
-                        }
-
-                        var listing = new Listing
+                        channelListing.Programs.Add(new Program
                         {
                             StartTime = startDateTime,
                             EndTime = endDateTime,
-                            Title = Font.FormatWithFontTokens(FormatTitle(airingElement)),
-                            ChannelId = channelId,
-                            Block = Time.CalculateBlockNumber(startDateTime)
-                        };
-
-                        listings.Add(listing);
+                            Title = airingElement.GetProperty("Title").GetString(),
+                            IsMovie = isMovie,
+                            Description = airingElement.TryGetProperty("Summary", out _)
+                                ? airingElement.GetProperty("Summary").GetString()
+                                : string.Empty,
+                            Rating = airingElement.TryGetProperty("ContentRating", out _)
+                                ? airingElement.GetProperty("ContentRating").GetString()
+                                : string.Empty,
+                            Year = isMovie
+                                ? airingElement.GetProperty("ReleaseYear").GetInt32().ToString()
+                                : string.Empty,
+                            IsStereo = hasTags && tags.EnumerateArray().Any(x => x.GetString().Equals("Stereo")),
+                            IsClosedCaptioned = hasTags && tags.EnumerateArray().Any(x => x.GetString().Equals("CC"))
+                        });
                     }
                     catch (Exception e)
                     {
                         _logger.LogError(e, "Unable to process airing element");
                     }
             }
+
+            yield return channelListing;
         }
-
-        return listings;
-    }
-
-    private async Task<JsonDocument> GetChannels()
-    {
-        using var httpClient = new HttpClient();
-        var response = await httpClient.GetAsync($"{_address}/api/v1/channels");
-        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
     }
 
     private async Task<JsonDocument> GetGuide()
@@ -163,53 +117,5 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         using var httpClient = new HttpClient();
         var response = await httpClient.GetAsync($"{_address}/devices/ANY/guide");
         return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-    }
-
-    private string FormatTitle(JsonElement airingElement)
-    {
-        var titleValue = airingElement.GetProperty("Title").GetString();
-        var isMovie = airingElement.TryGetProperty("MovieID", out _);
-        var title = isMovie
-            ? titleValue.Split("\"", StringSplitOptions.RemoveEmptyEntries).First().Split("(").First().Trim()
-                .Replace("%", "%%")
-            : titleValue.Replace("%", "%%");
-        var summary = airingElement.TryGetProperty("Summary", out _)
-            ? " " + airingElement.GetProperty("Summary").GetString().Replace("%", "%%")
-            : string.Empty;
-
-        var foundRating = airingElement.TryGetProperty("ContentRating", out _)
-            ? airingElement.GetProperty("ContentRating").GetString()
-            : string.Empty;
-        var rating = !string.IsNullOrWhiteSpace(foundRating) ? $" %{foundRating.Replace("-", "")}%" : "";
-
-        var stereo = string.Empty;
-        var closedCaptioning = string.Empty;
-
-        if (airingElement.TryGetProperty("Tags", out var tagsProperty))
-        {
-            stereo = tagsProperty.EnumerateArray().Any(x => x.GetString().Equals("Stereo"))
-                ? " %STEREO%"
-                : string.Empty;
-
-            closedCaptioning =
-                tagsProperty.EnumerateArray().Any(x => x.GetString().Equals("CC"))
-                    ? " %CC%"
-                    : string.Empty;
-        }
-
-        var movieReleaseYear = isMovie
-            ? airingElement.GetProperty("ReleaseYear").GetInt32().ToString()
-            : string.Empty;
-
-        var extraString = isMovie
-            ? $"{rating}{summary}{stereo}{closedCaptioning}"
-            : $"{rating}{stereo}{closedCaptioning}".Trim();
-        extraString = string.IsNullOrWhiteSpace(extraString) ? string.Empty : $" {extraString}".TrimEnd();
-
-        var generatedDescription = isMovie
-            ? $"\"{title.Trim()}\" ({movieReleaseYear}){extraString}"
-            : $"{title.Trim()}{extraString}";
-
-        return generatedDescription;
     }
 }

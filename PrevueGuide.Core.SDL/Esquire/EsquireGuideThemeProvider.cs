@@ -1,17 +1,18 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
-using PrevueGuide.Core.Model;
+using PrevueGuide.Core.Model.Listings;
+using PrevueGuide.Core.Model.Listings.Channel;
 using PrevueGuide.Core.SDL.Wrappers;
+using PrevueGuide.Core.Utilities;
 
 namespace PrevueGuide.Core.SDL.Esquire;
 
-public class EsquireGuideTextureProvider : IGuideTextureProvider
+public class EsquireGuideThemeProvider : IGuideThemeProvider
 {
+    private const int ChannelColumnWidth = 144;
     private const int StandardRowHeight = 56;
     private const int StandardColumnWidth = 172;
-    private const int FirstColumnWidth = StandardColumnWidth;
-    private const int SecondColumnWidth = StandardColumnWidth;
-    private const int ThirdColumnWidth = StandardColumnWidth + 36;
+    private const int LastColumnWidth = StandardColumnWidth + 36;
     private const int SingleArrowWidth = 16;
     private const int DoubleArrowWidth = 24;
     // Arrow has a margin of 1px from the bevel.
@@ -20,7 +21,7 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
     private readonly ILogger _logger;
     private readonly FontManager _fontManager;
 
-    public EsquireGuideTextureProvider(ILogger logger)
+    public EsquireGuideThemeProvider(ILogger logger)
     {
         _logger = logger;
         _fontManager = new FontManager(logger);
@@ -36,33 +37,73 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
     public int DefaultWindowHeight => 436;
     public FullscreenMode DefaultFullscreenMode => FullscreenMode.Letterbox;
 
-    private string RenderListing(Listing listing)
+    private string GetLineText(Program program)
+    {
+        // Hardcode this all to just use the fonts from the map?
+        var titleValue = program.Title;
+
+        var title = program.IsMovie
+            ? titleValue.Split("\"", StringSplitOptions.RemoveEmptyEntries).First().Split("(").First().Trim()
+                .Replace("%", "%%")
+            : titleValue.Replace("%", "%%");
+        var description = program.Description.Replace("%", "%%");
+
+        var rating = !string.IsNullOrWhiteSpace(program.Rating) ? $" %{program.Rating.Replace("-", "")}%" : "";
+        var stereo = program.IsStereo ? " %STEREO%" : string.Empty;
+        var closedCaptioning = program.IsClosedCaptioned ? " %CC%" : string.Empty;
+
+        var extraString = program.IsMovie
+            ? $"{rating}{description}{stereo}{closedCaptioning}"
+            : $"{rating}{stereo}{closedCaptioning}".Trim();
+        extraString = string.IsNullOrWhiteSpace(extraString) ? string.Empty : $" {extraString}".TrimEnd();
+
+        var generatedDescription = program.IsMovie
+            ? $"\"{title.Trim()}\" ({program.Year}){extraString}"
+            : $"{title.Trim()}{extraString}";
+
+        return Font.FormatWithFontTokens(generatedDescription);
+    }
+
+    /*
+    private string RenderListing(Program program)
     {
         var listingRating = "";
         var listingSubtitled = "";
 
         var prevueGridFont = _fontManager.FontConfigurations["PrevueGrid"];
 
-        if (!string.IsNullOrWhiteSpace(listing.Rating))
+        if (!string.IsNullOrWhiteSpace(program.Rating))
         {
-            listingRating = prevueGridFont.IconMap.ContainsKey(listing.Rating)
-                ? $" {prevueGridFont.IconMap[listing.Rating].Value}"
-                : $" {listing.Rating}";
+            listingRating = prevueGridFont.IconMap.ContainsKey(program.Rating)
+                ? $" {prevueGridFont.IconMap[program.Rating].Value}"
+                : $" {program.Rating}";
         }
 
-        if (!string.IsNullOrWhiteSpace(listing.Subtitled))
+        if (!string.IsNullOrWhiteSpace(program.Close))
         {
-            listingSubtitled = prevueGridFont.IconMap.ContainsKey(listing.Subtitled)
-                ? $" {prevueGridFont.IconMap[listing.Subtitled].Value}"
-                : $" {listing.Subtitled}";
+            listingSubtitled = prevueGridFont.IconMap.ContainsKey(program.Subtitled)
+                ? $" {prevueGridFont.IconMap[program.Subtitled].Value}"
+                : $" {program.Subtitled}";
         }
 
-        return listing.Category == "Movie"
-            ? $"\"{listing.Title}\" ({listing.Year}) {listing.Description}{listingRating}{listingSubtitled}"
-            : $"{listing.Title}{listingRating}{listingSubtitled}";
+        return program.Category == "Movie"
+            ? $"\"{program.Title}\" ({program.Year}) {program.Description}{listingRating}{listingSubtitled}"
+            : $"{program.Title}{listingRating}{listingSubtitled}";
+    }*/
+
+    public IEnumerable<Texture> GenerateRows(IEnumerable<IListing> listings)
+    {
+        // Will change this to group by channels.
+        foreach (var listing in listings)
+        {
+            if (listing.GetType() == typeof(ChannelListing))
+                yield return GenerateChannelListingTexture((ChannelListing)listing);
+            else
+                throw new NotImplementedException(listing.GetType().Name);
+        }
     }
 
-    public Texture GenerateListingTexture(Listing listing, DateTime firstColumnStartTime)
+    private Texture GenerateChannelListingTexture(ChannelListing channelListing)
     {
         var height = StandardRowHeight;
 
@@ -72,143 +113,192 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
         var lines = 2;
         var width = 0;
 
-        var firstColumnEndTime = firstColumnStartTime.AddMinutes(30);
-        var secondColumnStartTime = firstColumnEndTime;
-        var secondColumnEndTime = firstColumnStartTime.AddMinutes(60);
-        var thirdColumnStartTime = secondColumnEndTime;
-        var thirdColumnEndTime = firstColumnStartTime.AddMinutes(90);
+        var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
+        var columnsCount = screenScaledWidth / StandardColumnWidth;
 
-        if (listing.StartTime <= firstColumnStartTime && listing.EndTime >= thirdColumnEndTime)
-        {
-            // All 3 columns taken up.
-            leftArrow = ArrowType.Single;
-            if (listing.StartTime <= firstColumnStartTime.AddMinutes(-30))
-            {
-                leftArrow = ArrowType.Double;
-            }
+        var textureHeight = StandardRowHeight;
+        var textureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);
 
-            rightArrow = ArrowType.Single;
-            if (listing.EndTime >= thirdColumnEndTime.AddMinutes(30))
-            {
-                rightArrow = ArrowType.Double;
-            }
+        var lastColumnEndTime = channelListing.FirstColumnStartTime.AddMinutes(30 * (columnsCount + 1));
 
-            canBePast2Lines = true;
-            width = FirstColumnWidth + SecondColumnWidth + ThirdColumnWidth;
-            // Recalculate the line count
-        }
-        else if (listing.StartTime <= firstColumnStartTime && listing.EndTime >= secondColumnEndTime)
+        var programs = channelListing.Programs
+            .OrderBy(p => p.StartTime)
+            .Where(p =>
+                p.StartTime <= channelListing.FirstColumnStartTime && p.EndTime >= channelListing.FirstColumnStartTime ||
+                p.StartTime <= lastColumnEndTime && p.EndTime >= lastColumnEndTime ||
+                p.StartTime <= channelListing.FirstColumnStartTime && p.EndTime >= lastColumnEndTime)
+            .ToList();
+
+        // Only allow multi-line if there's 1 listing.
+        canBePast2Lines = programs.Count() == 1;
+
+        // If we can be past 2 lines, calculate the number of lines. Otherwise, keep it at 2.
+        if (canBePast2Lines)
         {
-            // First and second columns.
-            leftArrow = ArrowType.Single;
-            if (listing.StartTime <= firstColumnStartTime.AddMinutes(-30))
-            {
-                leftArrow = ArrowType.Double;
-            }
-            width = FirstColumnWidth + SecondColumnWidth;
-        }
-        else if (listing.StartTime <= secondColumnStartTime && listing.EndTime >= thirdColumnStartTime)
-        {
-            // Second and third columns.
-            rightArrow = ArrowType.Single;
-            if (listing.EndTime >= thirdColumnEndTime.AddMinutes(30))
-            {
-                rightArrow = ArrowType.Double;
-            }
-            width = SecondColumnWidth + ThirdColumnWidth;
-        }
-        else if (listing.StartTime <= firstColumnStartTime && listing.EndTime >= firstColumnEndTime)
-        {
-            // First column.
-            leftArrow = ArrowType.Single;
-            if (listing.StartTime <= firstColumnStartTime.AddMinutes(-30))
-            {
-                leftArrow = ArrowType.Double;
-            }
-            width = FirstColumnWidth;
-        }
-        else if (listing.StartTime <= secondColumnStartTime && listing.EndTime >= secondColumnEndTime)
-        {
-            // Second column.
-            width = SecondColumnWidth;
-        }
-        else if (listing.StartTime <= thirdColumnStartTime && listing.EndTime >= thirdColumnEndTime)
-        {
-            // Third column.
-            rightArrow = ArrowType.Single;
-            if (listing.EndTime >= thirdColumnEndTime.AddMinutes(30))
-            {
-                rightArrow = ArrowType.Double;
-            }
-            width = ThirdColumnWidth;
+            // Calculate the textureHeight here. We'll have to do some math on the rows by pre-generating
+            // the text to display.
         }
 
-        // Calculate the height of the texture by determining the number of lines we're going to write.
+        var rowTexture = new Texture(_renderer, textureWidth, textureHeight);
+        var previousRowX = 0f;
 
-        var texture = new Texture(_renderer, width, height);
-        using (_ = new RenderingTarget(_renderer, texture))
+        // Fix all the column widths.
+        foreach (var program in programs)
         {
-            // This may change depending on what type of listing we're displaying (movie, sports, etc.)
-            _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
-
-            _ = SDL3.SDL.RenderClear(_renderer);
-
-            var leftMargin = 0;
-            var rightMargin = 0;
-
-            switch (leftArrow)
+            if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= lastColumnEndTime)
             {
-                case ArrowType.Single:
+                // All 3 columns taken up.
+                leftArrow = ArrowType.Single;
+                if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(-30))
                 {
-                    DrawSingleLeftArrow();
-                    leftMargin = SingleArrowWidth;
-                    break;
+                    leftArrow = ArrowType.Double;
                 }
-                case ArrowType.Double:
-                {
-                    DrawDoubleLeftArrow();
-                    leftMargin = DoubleArrowWidth;
-                    break;
-                }
-            }
 
-            switch (rightArrow)
+                rightArrow = ArrowType.Single;
+                if (program.EndTime >= lastColumnEndTime.AddMinutes(30))
+                {
+                    rightArrow = ArrowType.Double;
+                }
+
+                width = StandardColumnWidth + StandardColumnWidth + LastColumnWidth;
+                // Recalculate the line count
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
             {
-                case ArrowType.Single:
+                // First and second columns.
+                leftArrow = ArrowType.Single;
+                if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(-30))
                 {
-                    DrawSingleRightArrow(width);
-                    rightMargin = SingleArrowWidth;
-                    break;
+                    leftArrow = ArrowType.Double;
                 }
-                case ArrowType.Double:
-                {
-                    DrawDoubleRightArrow(width);
-                    rightMargin = DoubleArrowWidth;
-                    break;
-                }
-            }
 
-            // Draw text on the texture.
-            using (var listingLine = new Texture(GenerateDropShadowText(_renderer, _fontManager["PrevueGrid"],
-                       RenderListing(listing), Colors.Gray170, Configuration.Scale)))
+                width = StandardColumnWidth + StandardColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(30) && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
             {
-                SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
-                var rect = new SDL3.SDL.FRect
+                // Second and third columns.
+                rightArrow = ArrowType.Single;
+                if (program.EndTime >= lastColumnEndTime.AddMinutes(30))
                 {
-                    X = (5 + leftMargin) * Configuration.Scale,
-                    Y = 5 * Configuration.Scale,
-                    W = w - ((leftMargin + rightMargin) * Configuration.Scale),
-                    H = h
-                };
+                    rightArrow = ArrowType.Double;
+                }
 
-                SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
+                width = StandardColumnWidth + LastColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(30))
+            {
+                // First column.
+                leftArrow = ArrowType.Single;
+                if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(-30))
+                {
+                    leftArrow = ArrowType.Double;
+                }
+
+                width = StandardColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(30) && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
+            {
+                // Second column.
+                width = StandardColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(60) && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(90))
+            {
+                // Third column.
+                rightArrow = ArrowType.Single;
+                if (program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(120))
+                {
+                    rightArrow = ArrowType.Double;
+                }
+
+                width = LastColumnWidth;
             }
 
-            // Add a bevel.
-            Frame.CreateBevelOnTexture(_renderer, texture);
+            // Calculate the height of the texture by determining the number of lines we're going to write.
+
+            using (var programTexture = new Texture(_renderer, width, height))
+            {
+                using (_ = new RenderingTarget(_renderer, programTexture))
+                {
+                    // This may change depending on what type of listing we're displaying (movie, sports, etc.)
+                    _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
+
+                    _ = SDL3.SDL.RenderClear(_renderer);
+
+                    var leftMargin = 0;
+                    var rightMargin = 0;
+
+                    switch (leftArrow)
+                    {
+                        case ArrowType.Single:
+                        {
+                            DrawSingleLeftArrow();
+                            leftMargin = SingleArrowWidth;
+                            break;
+                        }
+                        case ArrowType.Double:
+                        {
+                            DrawDoubleLeftArrow();
+                            leftMargin = DoubleArrowWidth;
+                            break;
+                        }
+                    }
+
+                    switch (rightArrow)
+                    {
+                        case ArrowType.Single:
+                        {
+                            DrawSingleRightArrow(width);
+                            rightMargin = SingleArrowWidth;
+                            break;
+                        }
+                        case ArrowType.Double:
+                        {
+                            DrawDoubleRightArrow(width);
+                            rightMargin = DoubleArrowWidth;
+                            break;
+                        }
+                    }
+
+                    // Draw text on the texture.
+                    using (var listingLine = new Texture(GenerateDropShadowText(_renderer, _fontManager["PrevueGrid"],
+                               GetLineText(program), Colors.Gray170, Configuration.Scale)))
+                    {
+                        SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
+                        var rect = new SDL3.SDL.FRect
+                        {
+                            X = (5 + leftMargin) * Configuration.Scale,
+                            Y = 5 * Configuration.Scale,
+                            W = w - ((leftMargin + rightMargin) * Configuration.Scale),
+                            H = h
+                        };
+
+                        SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
+                    }
+
+                    // Add a bevel.
+                    Frame.CreateBevelOnTexture(_renderer, programTexture);
+                }
+
+                // Render the programTexture onto the row texture.
+                using (_ = new RenderingTarget(_renderer, rowTexture))
+                {
+                    SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
+
+                    var rect = new SDL3.SDL.FRect
+                    {
+                        X = previousRowX,
+                        Y = 0,
+                        W = w,
+                        H = h
+                    };
+
+                    previousRowX += w;
+                    SDL3.SDL.RenderTexture(_renderer, programTexture.SdlTexture, IntPtr.Zero, rect);
+                }
+            }
         }
 
-        return texture;
+        return rowTexture;
     }
 
     private void DrawSingleLeftArrow()
@@ -425,7 +515,7 @@ public class EsquireGuideTextureProvider : IGuideTextureProvider
         Double = 44
     }
 
-    public static IntPtr GenerateDropShadowText(IntPtr renderer, IntPtr font, string text,
+    private static IntPtr GenerateDropShadowText(IntPtr renderer, IntPtr font, string text,
         SDL3.SDL.Color fontColor, int scale = 1)
     {
         // var text = "\uf01d"; PREVUE
