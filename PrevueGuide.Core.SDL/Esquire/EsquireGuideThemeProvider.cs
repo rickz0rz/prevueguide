@@ -142,6 +142,35 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
         var rowTexture = new Texture(_renderer, textureWidth, textureHeight);
         var previousRowX = 0f;
 
+        // Draw the channel frame.
+        using (var channelTexture = new Texture(_renderer, ChannelColumnWidth, textureHeight))
+        {
+            using (_ = new RenderingTarget(_renderer, channelTexture))
+            {
+                SDL3.SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 0);
+                SDL3.SDL.RenderClear(_renderer);
+            }
+
+            Frame.CreateBevelOnTexture(_renderer, channelTexture);
+
+            using (_ = new RenderingTarget(_renderer, rowTexture))
+            {
+                _ = SDL3.SDL.GetTextureSize(channelTexture.SdlTexture, out var w, out var h);
+
+                var r = new SDL3.SDL.FRect
+                {
+                    X = 0f,
+                    Y = 0f,
+                    H = h,
+                    W = w
+                };
+
+                SDL3.SDL.RenderTexture(_renderer, channelTexture.SdlTexture, IntPtr.Zero, r);
+
+                previousRowX += w;
+            }
+        }
+
         // Fix all the column widths.
         foreach (var program in programs)
         {
