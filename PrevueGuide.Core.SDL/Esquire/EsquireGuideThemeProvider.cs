@@ -20,7 +20,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
     private readonly ILogger _logger;
     private readonly FontManager _fontManager;
-    private readonly FontSizeManager _fontSizeManager;
+    private FontSizeManager _fontSizeManager;
 
     public EsquireGuideThemeProvider(ILogger logger)
     {
@@ -241,10 +241,10 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                         };
 
                         SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
-
-                        yOffset += _fontManager.FontConfigurations["PrevueGrid"].PointSize - 1;
-                        lineNumber++;
                     }
+
+                    yOffset += _fontManager.FontConfigurations["PrevueGrid"].PointSize - 1;
+                    lineNumber++;
                 }
 
                 // Add a bevel.

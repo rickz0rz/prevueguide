@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using PrevueGuide.Core;
 using PrevueGuide.Core.Data.ChannelsDVR;
 using PrevueGuide.Core.Logging;
+using PrevueGuide.Core.Model.Listings.Channel;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
 using PrevueGuide.Core.SDL.Wrappers;
@@ -43,6 +44,13 @@ public class Guide : IDisposable
 
     public Guide(ILogger logger)
     {
+        if (!SDL.Init(SDL.InitFlags.Video))
+        {
+            throw new Exception($"There was an issue initializing SDL. {SDL.GetError()}");
+        }
+
+        _ = TTF.Init();
+
         _logger = logger;
         _textureManager = new TextureManager(logger);
         _fontManager = new FontManager(logger);
@@ -78,13 +86,6 @@ public class Guide : IDisposable
 
     private void Setup()
     {
-        if (!SDL.Init(SDL.InitFlags.Video))
-        {
-            throw new Exception($"There was an issue initializing SDL. {SDL.GetError()}");
-        }
-
-        _ = TTF.Init();
-
         // var scaledWindow = (int)(_guideThemeProvider.DefaultWindowHeight * _guideThemeProvider.ScaleRatio);
 
         _window = SDL.CreateWindow("Prevue Guide",
@@ -267,6 +268,10 @@ public class Guide : IDisposable
             var provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
             provider.PrevueChannelNumber = null;
             var listings = provider.GetEntries().ToBlockingEnumerable();
+
+            listings = listings.Where(listing => listing is ChannelListing)
+                .Select(listing => listing as ChannelListing)
+                .Where(listing => listing.Programs.First().IsMovie);
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
             _textureManager["row1"] = _guideThemeProvider.GenerateRows(listings).First();

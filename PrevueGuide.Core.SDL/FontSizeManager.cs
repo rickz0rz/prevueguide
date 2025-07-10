@@ -22,8 +22,7 @@ public class FontSizeManager : IDisposable
             if (!_map.ContainsKey(key))
             {
                 var text = SDL3.TTF.CreateText(_engine, _font, key, 0);
-                // var didThing = SDL3.TTF.GetTextSize(text, out var w, out var h);
-                var didThing = InternalSDL3.GetTextSize(text, out var w, out var h);
+                var didThing = SDL3.TTF.GetTextSize(text, out var w, out var h);
                 _map[key] = (w, h);
                 SDL3.TTF.DestroyText(text);
             }
