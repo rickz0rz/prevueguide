@@ -260,21 +260,32 @@ public class Guide : IDisposable
     {
         try
         {
-            _textureManager.PurgeTexture("row1");
-            // _textureManager.PurgeTexture("frame2");
+            for (var i = 0; i < 5; i++)
+                _textureManager.PurgeTexture($"row{i}");
+
             _textureManager.PurgeTexture("guide");
 
             var now = DateTime.Now;
             var provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
-            provider.PrevueChannelNumber = null;
+            provider.PrevueChannelNumber = 1;
             var listings = provider.GetEntries().ToBlockingEnumerable();
 
+            /*
             listings = listings.Where(listing => listing is ChannelListing)
                 .Select(listing => listing as ChannelListing)
                 .Where(listing => listing.Programs.First().IsMovie);
+                */
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-            _textureManager["row1"] = _guideThemeProvider.GenerateRows(listings).First();
+
+            var c = 0;
+            foreach (var row in _guideThemeProvider.GenerateRows(listings))
+            {
+                _textureManager[$"row{c}"] = row;
+                c++;
+                if (c >= 5)
+                    break;
+            }
         }
         catch (Exception ex)
         {
@@ -296,22 +307,24 @@ public class Guide : IDisposable
                 InternalSDL3.SetRenderDrawColor(_renderer, _guideThemeProvider.DefaultGuideBackground);
                 SDL.RenderClear(_renderer);
 
-                foreach (var t in new[] { ("row1", 0) })
+                var y = 0f;
+                foreach (var t in new[] { "row0", "row1", "row2", "row3", "row4" })
                 {
-                    var row1 = _textureManager[t.Item1];
+                    var row = _textureManager[t];
 
-                    if (row1 != null)
+                    if (row != null)
                     {
-                        _ = SDL.GetTextureSize(row1.SdlTexture, out var width, out var height);
+                        _ = SDL.GetTextureSize(row.SdlTexture, out var width, out var height);
                         var dstFRect = new SDL.FRect
                         {
                             X = 0,
-                            Y = t.Item2,
+                            Y = y,
                             W = width * _guideThemeProvider.ScaleRatio,
                             H = height
                         };
 
-                        _ = SDL.RenderTexture(_renderer, row1.SdlTexture, IntPtr.Zero, dstFRect);
+                        _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
+                        y += (height / Configuration.Scale);
                     }
                 }
             }

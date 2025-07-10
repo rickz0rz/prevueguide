@@ -9,6 +9,8 @@ namespace PrevueGuide.Core.SDL.Esquire;
 
 public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 {
+    private const string PrevueFontName = "PrevueGrid";
+
     private const int ChannelColumnWidth = 144;
     private const int StandardRowHeight = 56;
     private const int StandardColumnWidth = 172;
@@ -26,7 +28,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
     {
         _logger = logger;
         _fontManager = new FontManager(logger);
-        _fontSizeManager = new FontSizeManager(_fontManager["PrevueGrid"]);
+        _fontSizeManager = new FontSizeManager(_fontManager[PrevueFontName]);
     }
 
     public void SetRenderer(nint renderer)
@@ -37,33 +39,37 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
     public SDL3.SDL.Color DefaultGuideBackground => Colors.DefaultBlue; // Might remove this in favor of a "render background" method.
     public int DefaultWindowWidth => 716;
     public int DefaultWindowHeight => 436;
-    // public float ScaleRatio => 0.95f;
     public float ScaleRatio => 1f;
     public FullscreenMode DefaultFullscreenMode => FullscreenMode.Letterbox;
 
     private string GetLineText(Program program)
     {
-        // Hardcode this all to just use the fonts from the map?
         var titleValue = program.Title;
 
         var title = program.IsMovie
             ? titleValue.Split("\"", StringSplitOptions.RemoveEmptyEntries).First().Split("(").First().Trim()
                 .Replace("%", "%%")
             : titleValue.Replace("%", "%%");
+
         var description = program.Description.Replace("%", "%%");
 
-        var rating = !string.IsNullOrWhiteSpace(program.Rating) ? $" %{program.Rating.Replace("-", "")}%" : "";
-        var stereo = program.IsStereo ? " %STEREO%" : string.Empty;
-        var closedCaptioning = program.IsClosedCaptioned ? " %CC%" : string.Empty;
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            description += " ";
+        }
+
+        var rating = !string.IsNullOrWhiteSpace(program.Rating) ? $"%{program.Rating.Replace("-", "")}% " : "";
+        var stereo = program.IsStereo ? "%STEREO% " : string.Empty;
+        var closedCaptioning = program.IsClosedCaptioned ? "%CC% " : string.Empty;
 
         var extraString = program.IsMovie
-            ? $"{rating}{description}{stereo}{closedCaptioning}"
+            ? $"{rating}({program.Year}) {description}{stereo}{closedCaptioning}"
             : $"{rating}{stereo}{closedCaptioning}".Trim();
         extraString = string.IsNullOrWhiteSpace(extraString) ? string.Empty : $" {extraString}".TrimEnd();
 
         var generatedDescription = program.IsMovie
-            ? $"\"{title.Trim()}\" ({program.Year}){extraString}"
-            : $"{title.Trim()}{extraString}";
+            ? $"\"{title.Trim()}\" {extraString}"
+            : $"{title.Trim()} {extraString}";
 
         return Font.FormatWithFontTokens(generatedDescription);
     }
@@ -167,7 +173,8 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                 width = LastColumnWidth;
             }
 
-            var textLines = GetTextLines(leftMargin, rightMargin, width, GetLineText(program));
+            // - 8 to account for the bevel
+            var textLines = GetTextLines(leftMargin, rightMargin, width - 8, GetLineText(program));
 
             if (canBePast2Lines && textLines.Count > 2)
             {
@@ -189,7 +196,6 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             {
                 // This may change depending on what type of listing we're displaying (movie, sports, etc.)
                 _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
-
                 _ = SDL3.SDL.RenderClear(_renderer);
 
                 switch (leftArrow)
@@ -220,13 +226,11 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                     }
                 }
 
-                // Generate the lines somewhere else and use them here.
                 var lineNumber = 0;
-
                 foreach (var textLine in textLines)
                 {
                     using (var listingLine = new Texture(GenerateDropShadowText(_renderer,
-                               _fontManager["PrevueGrid"],
+                               _fontManager[PrevueFontName],
                                textLine, Colors.Gray170, Configuration.Scale)))
                     {
                         SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
@@ -243,15 +247,13 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                         SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
                     }
 
-                    yOffset += _fontManager.FontConfigurations["PrevueGrid"].PointSize - 1;
+                    yOffset += _fontManager.FontConfigurations[PrevueFontName].PointSize - 1;
                     lineNumber++;
                 }
 
-                // Add a bevel.
                 Frame.CreateBevelOnTexture(_renderer, programTexture);
             }
 
-            // Add it to the program textures list.
             programTextures.Add(programTexture);
         }
 
@@ -266,12 +268,42 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
         // Draw the channel frame.
         var unscaledMaximumTextureHeight = (int)maximumTextureHeight / Configuration.Scale;
+
         using (var channelTexture = new Texture(_renderer, ChannelColumnWidth, unscaledMaximumTextureHeight))
         {
             using (_ = new RenderingTarget(_renderer, channelTexture))
             {
                 SDL3.SDL.SetRenderDrawColor(_renderer, 0, 0, 0, 0);
                 SDL3.SDL.RenderClear(_renderer);
+
+                using var channelLine1 = new Texture(GenerateDropShadowText(_renderer, _fontManager[PrevueFontName],
+                    channelListing.ChannelNumber, Colors.Yellow));
+                using var channelLine2 = new Texture(GenerateDropShadowText(_renderer, _fontManager[PrevueFontName],
+                    channelListing.CallSign, Colors.Yellow));
+
+                var selectedFont = _fontManager.FontConfigurations[PrevueFontName];
+
+                _ = SDL3.SDL.GetTextureSize(channelLine1.SdlTexture, out var w1, out var h1);
+                var wOffset1 = (90 - (w1 / Configuration.Scale) / 2) + 8;
+                var dstRect1 = new SDL3.SDL.FRect
+                {
+                    H = h1,
+                    W = w1,
+                    X = (wOffset1 + selectedFont.XOffset) * Configuration.Scale,
+                    Y = 5 * Configuration.Scale
+                };
+                _ = SDL3.SDL.RenderTexture(_renderer, channelLine1.SdlTexture, IntPtr.Zero, in dstRect1);
+
+                _ = SDL3.SDL.GetTextureSize(channelLine2.SdlTexture, out var w2, out var h2);
+                var wOffset2 = (90 - (w2 / Configuration.Scale) / 2) + 8;
+                var dstRect2 = new SDL3.SDL.FRect
+                {
+                    H = h2,
+                    W = w2,
+                    X = (wOffset2 + selectedFont.XOffset) * Configuration.Scale,
+                    Y = (selectedFont.PointSize + 5) * Configuration.Scale
+                };
+                _ = SDL3.SDL.RenderTexture(_renderer, channelLine2.SdlTexture, IntPtr.Zero, in dstRect2);
             }
 
             Frame.CreateBevelOnTexture(_renderer, channelTexture);
@@ -289,19 +321,15 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                 };
 
                 SDL3.SDL.RenderTexture(_renderer, channelTexture.SdlTexture, IntPtr.Zero, r);
-
                 previousRowX += w;
             }
         }
 
-        // Draw the listings.
         foreach (var programTexture in programTextures)
         {
-            // Render the programTexture onto the row texture.
             using (_ = new RenderingTarget(_renderer, rowTexture))
             {
                 SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
-
                 var rect = new SDL3.SDL.FRect
                 {
                     X = previousRowX,
@@ -310,8 +338,8 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                     H = h
                 };
 
-                previousRowX += w;
                 SDL3.SDL.RenderTexture(_renderer, programTexture.SdlTexture, IntPtr.Zero, rect);
+                previousRowX += w;
             }
         }
 
@@ -450,7 +478,6 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
     private void DrawSingleRightArrow(int width)
     {
         var startPositionBlack = width - SingleArrowWidth - 5;
-        // Draw black.
         _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black17);
 
         var arrowBlackVertices = new List<ScaledVertex>
@@ -562,17 +589,17 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             new()
             {
                 Color = Colors.Black17.ToFColor(),
-                Position = new ScaledFPoint { X = startPositionBlack + 23, Y = 5 } // 23, 0
+                Position = new ScaledFPoint { X = startPositionBlack, Y = 5 } // 23, 0
             },
             new()
             {
                 Color = Colors.Black17.ToFColor(),
-                Position = new ScaledFPoint { X = startPositionBlack + 8, Y = 30 } // 8, 25
+                Position = new ScaledFPoint { X = startPositionBlack + 15, Y = 30 } // 8, 25
             },
             new()
             {
                 Color = Colors.Black17.ToFColor(),
-                Position = new ScaledFPoint { X = startPositionBlack + 23, Y = 55 } // 23, 50
+                Position = new ScaledFPoint { X = startPositionBlack + 0, Y = 55 } // 23, 50
             }
         };
 
@@ -586,17 +613,17 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             new()
             {
                 Color = Colors.Gray170.ToFColor(),
-                Position = new ScaledFPoint { X = 27, Y = 7 } // 22, 2
+                Position = new ScaledFPoint { X = startPositionBlack + 1, Y = 7 } // 22, 2
             },
             new()
             {
                 Color = Colors.Gray170.ToFColor(),
-                Position = new ScaledFPoint { X = 15, Y = 30 } // 10, 25
+                Position = new ScaledFPoint { X = startPositionBlack + 14, Y = 30 } // 10, 25
             },
             new()
             {
                 Color = Colors.Gray170.ToFColor(),
-                Position = new ScaledFPoint { X = 27, Y = 53 } // 22, 48
+                Position = new ScaledFPoint { X = startPositionBlack + 1, Y = 53 } // 22, 48
             }
         };
 
