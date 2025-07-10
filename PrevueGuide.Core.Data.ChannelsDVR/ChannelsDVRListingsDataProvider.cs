@@ -47,7 +47,14 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                     {
                         StartTime = now.AddHours(-4),
                         EndTime = now.AddHours(4),
-                        Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!")
+                        Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
+                        // Title = "Paid Program",
+                        IsMovie = false,
+                        Description = "",
+                        IsClosedCaptioned = false,
+                        IsStereo = false,
+                        Rating = "",
+                        Year = "2025"
                     }
                 ]
             };
@@ -69,9 +76,22 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
             {
                 var start = airingElement.GetProperty("Time").GetInt64();
                 var offset = DateTimeOffset.FromUnixTimeSeconds(start);
-                var startDateTime = offset.LocalDateTime;
-                var duration = airingElement.GetProperty("Duration").GetInt32();
-                var endDateTime = startDateTime.AddSeconds(duration);
+                var startDateTime = offset.LocalDateTime; // Lock to :30 increments
+
+                var adjustment = startDateTime.Minute > 30
+                    ? startDateTime.Minute - 30
+                    : startDateTime.Minute;
+
+                if (adjustment > 0)
+                {
+                    adjustment = adjustment >= 15
+                        ? 30 - adjustment
+                        : 0 - adjustment;
+                }
+
+                var endDateTime = startDateTime.AddSeconds(airingElement.GetProperty("Duration").GetInt32());
+                startDateTime = startDateTime.AddMinutes(adjustment);
+
                 var endTime = startTime.AddMinutes(90); // make this dynamic depending on the width in the configuration.
 
                 if ((startDateTime < startTime && endDateTime > startTime && endDateTime <= endTime) ||

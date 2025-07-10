@@ -11,6 +11,7 @@ public interface IGuideThemeProvider
     SDL3.SDL.Color DefaultGuideBackground { get; }
     int DefaultWindowWidth { get; }
     int DefaultWindowHeight { get; }
+    float ScaleRatio { get; }
     FullscreenMode DefaultFullscreenMode { get; }
 
     void SetRenderer(nint renderer);

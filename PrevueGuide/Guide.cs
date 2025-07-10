@@ -85,6 +85,8 @@ public class Guide : IDisposable
 
         _ = TTF.Init();
 
+        // var scaledWindow = (int)(_guideThemeProvider.DefaultWindowHeight * _guideThemeProvider.ScaleRatio);
+
         _window = SDL.CreateWindow("Prevue Guide",
             _guideThemeProvider.DefaultWindowWidth,
             _guideThemeProvider.DefaultWindowHeight,
@@ -300,7 +302,7 @@ public class Guide : IDisposable
                         {
                             X = 0,
                             Y = t.Item2,
-                            W = width,
+                            W = width * _guideThemeProvider.ScaleRatio,
                             H = height
                         };
 

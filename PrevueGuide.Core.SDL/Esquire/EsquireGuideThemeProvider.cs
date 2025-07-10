@@ -35,6 +35,8 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
     public SDL3.SDL.Color DefaultGuideBackground => Colors.DefaultBlue; // Might remove this in favor of a "render background" method.
     public int DefaultWindowWidth => 716;
     public int DefaultWindowHeight => 436;
+    // public float ScaleRatio => 0.95f;
+    public float ScaleRatio => 1f;
     public FullscreenMode DefaultFullscreenMode => FullscreenMode.Letterbox;
 
     private string GetLineText(Program program)
@@ -64,33 +66,6 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
         return Font.FormatWithFontTokens(generatedDescription);
     }
 
-    /*
-    private string RenderListing(Program program)
-    {
-        var listingRating = "";
-        var listingSubtitled = "";
-
-        var prevueGridFont = _fontManager.FontConfigurations["PrevueGrid"];
-
-        if (!string.IsNullOrWhiteSpace(program.Rating))
-        {
-            listingRating = prevueGridFont.IconMap.ContainsKey(program.Rating)
-                ? $" {prevueGridFont.IconMap[program.Rating].Value}"
-                : $" {program.Rating}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(program.Close))
-        {
-            listingSubtitled = prevueGridFont.IconMap.ContainsKey(program.Subtitled)
-                ? $" {prevueGridFont.IconMap[program.Subtitled].Value}"
-                : $" {program.Subtitled}";
-        }
-
-        return program.Category == "Movie"
-            ? $"\"{program.Title}\" ({program.Year}) {program.Description}{listingRating}{listingSubtitled}"
-            : $"{program.Title}{listingRating}{listingSubtitled}";
-    }*/
-
     public IEnumerable<Texture> GenerateRows(IEnumerable<IListing> listings)
     {
         // Will change this to group by channels.
@@ -106,12 +81,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
     private Texture GenerateChannelListingTexture(ChannelListing channelListing)
     {
         var height = StandardRowHeight;
-
-        var leftArrow = ArrowType.None;
-        var rightArrow = ArrowType.None;
-        var canBePast2Lines = false;
         var lines = 2;
-        var width = 0;
 
         var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
         var columnsCount = screenScaledWidth / StandardColumnWidth;
@@ -130,20 +100,173 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
             .ToList();
 
         // Only allow multi-line if there's 1 listing.
-        canBePast2Lines = programs.Count() == 1;
+        // var canBePast2Lines = programs.Count == 1;
+        var canBePast2Lines = true;
 
-        // If we can be past 2 lines, calculate the number of lines. Otherwise, keep it at 2.
-        if (canBePast2Lines)
+        var programTextures = new List<Texture>();
+
+        foreach (var program in programs)
         {
-            // Calculate the textureHeight here. We'll have to do some math on the rows by pre-generating
-            // the text to display.
+            var leftArrow = ArrowType.None;
+            var rightArrow = ArrowType.None;
+            var width = 0;
+
+            var leftMargin = 0;
+            var rightMargin = 0;
+
+            if (program.StartTime < channelListing.FirstColumnStartTime)
+            {
+                leftArrow = ArrowType.Single;
+                leftMargin = SingleArrowWidth;
+
+                if (program.StartTime < channelListing.FirstColumnStartTime.AddMinutes(-30))
+                {
+                    leftArrow = ArrowType.Double;
+                    leftMargin = DoubleArrowWidth;
+                }
+            }
+
+            if (program.EndTime > lastColumnEndTime)
+            {
+                rightArrow = ArrowType.Single;
+                rightMargin = SingleArrowWidth;
+
+                if (program.EndTime > lastColumnEndTime.AddMinutes(30))
+                {
+                    rightArrow = ArrowType.Double;
+                    rightMargin = DoubleArrowWidth;
+                }
+            }
+
+            if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= lastColumnEndTime)
+            {
+                width = StandardColumnWidth + StandardColumnWidth + LastColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime &&
+                     program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
+            {
+                width = StandardColumnWidth + StandardColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(30) &&
+                     program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
+            {
+                width = StandardColumnWidth + LastColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime &&
+                     program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(30))
+            {
+                width = StandardColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(30) &&
+                     program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
+            {
+                width = StandardColumnWidth;
+            }
+            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(60) &&
+                     program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(90))
+            {
+                width = LastColumnWidth;
+            }
+
+            var textLines = GetTextLines(leftMargin, rightMargin, width, GetLineText(program));
+
+            if (canBePast2Lines && textLines.Count > 2)
+            {
+                lines = textLines.Count;
+            }
+            else
+            {
+                textLines = textLines.Take(2).ToList();
+            }
+
+            height = (lines * 24) + 8;
+            var yOffset = 0;
+
+            var programTexture = new Texture(_renderer, width, height);
+
+            using (_ = new RenderingTarget(_renderer, programTexture))
+            {
+                // This may change depending on what type of listing we're displaying (movie, sports, etc.)
+                _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
+
+                _ = SDL3.SDL.RenderClear(_renderer);
+
+                switch (leftArrow)
+                {
+                    case ArrowType.Single:
+                    {
+                        DrawSingleLeftArrow();
+                        break;
+                    }
+                    case ArrowType.Double:
+                    {
+                        DrawDoubleLeftArrow();
+                        break;
+                    }
+                }
+
+                switch (rightArrow)
+                {
+                    case ArrowType.Single:
+                    {
+                        DrawSingleRightArrow(width);
+                        break;
+                    }
+                    case ArrowType.Double:
+                    {
+                        DrawDoubleRightArrow(width);
+                        break;
+                    }
+                }
+
+                // Generate the lines somewhere else and use them here.
+                var lineNumber = 0;
+
+                foreach (var textLine in textLines)
+                {
+                    using var listingLine = new Texture(GenerateDropShadowText(_renderer,
+                        _fontManager["PrevueGrid"],
+                        textLine, Colors.Gray170, Configuration.Scale));
+
+                    SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
+
+                    var computedLeftMargin = lineNumber < 2 ? leftMargin : 0;
+                    var computedRightMargin = lineNumber < 2 ? rightMargin : 0;
+
+                    var rect = new SDL3.SDL.FRect
+                    {
+                        X = (5 + computedLeftMargin) * Configuration.Scale,
+                        Y = (5 + yOffset) * Configuration.Scale,
+                        W = w - (computedLeftMargin + computedRightMargin) * Configuration.Scale,
+                        H = h
+                    };
+
+                    SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
+
+                    yOffset += _fontManager.FontConfigurations["PrevueGrid"].PointSize;
+                    lineNumber++;
+                }
+
+                // Add a bevel.
+                Frame.CreateBevelOnTexture(_renderer, programTexture);
+            }
+
+            // Add it to the program textures list.
+            programTextures.Add(programTexture);
         }
 
-        var rowTexture = new Texture(_renderer, textureWidth, textureHeight);
+        var maximumTextureHeight = programTextures.Max(programTexture =>
+        {
+            SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
+            return h;
+        });
+
+        var rowTexture = new Texture(_renderer, textureWidth, (int)maximumTextureHeight);
         var previousRowX = 0f;
 
         // Draw the channel frame.
-        using (var channelTexture = new Texture(_renderer, ChannelColumnWidth, textureHeight))
+        var unscaledMaximumTextureHeight = (int)maximumTextureHeight / Configuration.Scale;
+        using (var channelTexture = new Texture(_renderer, ChannelColumnWidth, unscaledMaximumTextureHeight))
         {
             using (_ = new RenderingTarget(_renderer, channelTexture))
             {
@@ -171,163 +294,33 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
             }
         }
 
-        // Fix all the column widths.
-        foreach (var program in programs)
+        // Draw the listings.
+        foreach (var programTexture in programTextures)
         {
-            if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= lastColumnEndTime)
+            // Render the programTexture onto the row texture.
+            using (_ = new RenderingTarget(_renderer, rowTexture))
             {
-                // All 3 columns taken up.
-                leftArrow = ArrowType.Single;
-                if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(-30))
+                SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
+
+                var rect = new SDL3.SDL.FRect
                 {
-                    leftArrow = ArrowType.Double;
-                }
+                    X = previousRowX,
+                    Y = 0,
+                    W = w,
+                    H = h
+                };
 
-                rightArrow = ArrowType.Single;
-                if (program.EndTime >= lastColumnEndTime.AddMinutes(30))
-                {
-                    rightArrow = ArrowType.Double;
-                }
-
-                width = StandardColumnWidth + StandardColumnWidth + LastColumnWidth;
-                // Recalculate the line count
-            }
-            else if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
-            {
-                // First and second columns.
-                leftArrow = ArrowType.Single;
-                if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(-30))
-                {
-                    leftArrow = ArrowType.Double;
-                }
-
-                width = StandardColumnWidth + StandardColumnWidth;
-            }
-            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(30) && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
-            {
-                // Second and third columns.
-                rightArrow = ArrowType.Single;
-                if (program.EndTime >= lastColumnEndTime.AddMinutes(30))
-                {
-                    rightArrow = ArrowType.Double;
-                }
-
-                width = StandardColumnWidth + LastColumnWidth;
-            }
-            else if (program.StartTime <= channelListing.FirstColumnStartTime && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(30))
-            {
-                // First column.
-                leftArrow = ArrowType.Single;
-                if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(-30))
-                {
-                    leftArrow = ArrowType.Double;
-                }
-
-                width = StandardColumnWidth;
-            }
-            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(30) && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(60))
-            {
-                // Second column.
-                width = StandardColumnWidth;
-            }
-            else if (program.StartTime <= channelListing.FirstColumnStartTime.AddMinutes(60) && program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(90))
-            {
-                // Third column.
-                rightArrow = ArrowType.Single;
-                if (program.EndTime >= channelListing.FirstColumnStartTime.AddMinutes(120))
-                {
-                    rightArrow = ArrowType.Double;
-                }
-
-                width = LastColumnWidth;
-            }
-
-            // Calculate the height of the texture by determining the number of lines we're going to write.
-
-            using (var programTexture = new Texture(_renderer, width, height))
-            {
-                using (_ = new RenderingTarget(_renderer, programTexture))
-                {
-                    // This may change depending on what type of listing we're displaying (movie, sports, etc.)
-                    _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Transparent);
-
-                    _ = SDL3.SDL.RenderClear(_renderer);
-
-                    var leftMargin = 0;
-                    var rightMargin = 0;
-
-                    switch (leftArrow)
-                    {
-                        case ArrowType.Single:
-                        {
-                            DrawSingleLeftArrow();
-                            leftMargin = SingleArrowWidth;
-                            break;
-                        }
-                        case ArrowType.Double:
-                        {
-                            DrawDoubleLeftArrow();
-                            leftMargin = DoubleArrowWidth;
-                            break;
-                        }
-                    }
-
-                    switch (rightArrow)
-                    {
-                        case ArrowType.Single:
-                        {
-                            DrawSingleRightArrow(width);
-                            rightMargin = SingleArrowWidth;
-                            break;
-                        }
-                        case ArrowType.Double:
-                        {
-                            DrawDoubleRightArrow(width);
-                            rightMargin = DoubleArrowWidth;
-                            break;
-                        }
-                    }
-
-                    // Draw text on the texture.
-                    using (var listingLine = new Texture(GenerateDropShadowText(_renderer, _fontManager["PrevueGrid"],
-                               GetLineText(program), Colors.Gray170, Configuration.Scale)))
-                    {
-                        SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
-                        var rect = new SDL3.SDL.FRect
-                        {
-                            X = (5 + leftMargin) * Configuration.Scale,
-                            Y = 5 * Configuration.Scale,
-                            W = w - ((leftMargin + rightMargin) * Configuration.Scale),
-                            H = h
-                        };
-
-                        SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
-                    }
-
-                    // Add a bevel.
-                    Frame.CreateBevelOnTexture(_renderer, programTexture);
-                }
-
-                // Render the programTexture onto the row texture.
-                using (_ = new RenderingTarget(_renderer, rowTexture))
-                {
-                    SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
-
-                    var rect = new SDL3.SDL.FRect
-                    {
-                        X = previousRowX,
-                        Y = 0,
-                        W = w,
-                        H = h
-                    };
-
-                    previousRowX += w;
-                    SDL3.SDL.RenderTexture(_renderer, programTexture.SdlTexture, IntPtr.Zero, rect);
-                }
+                previousRowX += w;
+                SDL3.SDL.RenderTexture(_renderer, programTexture.SdlTexture, IntPtr.Zero, rect);
             }
         }
 
         return rowTexture;
+    }
+
+    private List<string> GetTextLines(int leftMargin, int rightMargin, int columnWidth, string text)
+    {
+        return new List<string> { text, "abc", "123" };
     }
 
     private void DrawSingleLeftArrow()
