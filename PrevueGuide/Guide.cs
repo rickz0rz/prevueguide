@@ -18,13 +18,14 @@ namespace PrevueGuide;
 // How do I manage caching of guide entries? Do I just regenerate the textures every time the guide time will roll-over?
 // If so, can we do something to make it so we can procedurally create the textures instead of doing them all in one-shot to make the delay less obvious?
 // At any given time, we need enough guide elements to render the whole screen filled. The guide is presented by being shifted down (or up?) a specific amount.
+// Don't rerender every element if they have not changed.
 
 public class Guide : IDisposable
 {
     private readonly ILogger _logger;
     private readonly TextureManager _textureManager;
     private readonly FontManager _fontManager;
-    private readonly IGuideThemeProvider _guideThemeProvider;
+    private readonly IGuideThemeProvider _esquireGuideThemeProvider;
 
     private List<int> _frameTimes;
     private int _updateFPSCounter;
@@ -54,8 +55,8 @@ public class Guide : IDisposable
         _logger = logger;
         _textureManager = new TextureManager(logger);
         _fontManager = new FontManager(logger);
-        _guideThemeProvider = new EsquireGuideThemeProvider(_logger);
-        _currentFullscreenMode = _guideThemeProvider.DefaultFullscreenMode;
+        _esquireGuideThemeProvider = new EsquireGuideThemeProvider(_logger);
+        _currentFullscreenMode = _esquireGuideThemeProvider.DefaultFullscreenMode;
         _frameTimes  = [];
 
         // For rendering on-screen logs.
@@ -89,8 +90,8 @@ public class Guide : IDisposable
         // var scaledWindow = (int)(_guideThemeProvider.DefaultWindowHeight * _guideThemeProvider.ScaleRatio);
 
         _window = SDL.CreateWindow("Prevue Guide",
-            _guideThemeProvider.DefaultWindowWidth,
-            _guideThemeProvider.DefaultWindowHeight,
+            _esquireGuideThemeProvider.DefaultWindowWidth,
+            _esquireGuideThemeProvider.DefaultWindowHeight,
             _highDpi ? SDL.WindowFlags.HighPixelDensity | SDL.WindowFlags.Metal : SDL.WindowFlags.Metal);
 
         if (_window == IntPtr.Zero)
@@ -106,7 +107,7 @@ public class Guide : IDisposable
             throw new Exception($"There was an issue creating the renderer. {SDL.GetError()}");
         }
 
-        _guideThemeProvider.SetRenderer(_renderer);
+        _esquireGuideThemeProvider.SetRenderer(_renderer);
 
         SetFullscreen();
         SetVSync();
@@ -122,8 +123,8 @@ public class Guide : IDisposable
         Configuration.WindowHeight = windowHeightPixels;
         _logger.LogInformation(@"[Window] Window Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
 
-        var rawWidthScale = (float)windowWidthPixels / _guideThemeProvider.DefaultWindowWidth;
-        var rawHeightScale = (float)windowHeightPixels / _guideThemeProvider.DefaultWindowHeight;
+        var rawWidthScale = (float)windowWidthPixels / _esquireGuideThemeProvider.DefaultWindowWidth;
+        var rawHeightScale = (float)windowHeightPixels / _esquireGuideThemeProvider.DefaultWindowHeight;
         _logger.LogInformation(@"[Window] Scales: {Width} x {Height}", rawWidthScale, rawHeightScale);
 
         var smallerScale = rawWidthScale > rawHeightScale ? rawHeightScale : rawWidthScale;
@@ -134,8 +135,8 @@ public class Guide : IDisposable
         {
             _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.Letterbox}");
 
-            Configuration.DrawableWidth = Configuration.Scale * _guideThemeProvider.DefaultWindowWidth;
-            Configuration.DrawableHeight = Configuration.Scale * _guideThemeProvider.DefaultWindowHeight;
+            Configuration.DrawableWidth = Configuration.Scale * _esquireGuideThemeProvider.DefaultWindowWidth;
+            Configuration.DrawableHeight = Configuration.Scale * _esquireGuideThemeProvider.DefaultWindowHeight;
             _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
                 Configuration.DrawableHeight);
 
@@ -150,13 +151,13 @@ public class Guide : IDisposable
         {
             _logger.LogInformation($"Using fullscreen mode: {FullscreenMode.ZoomedFill}");
 
-            Configuration.DrawableWidth = Configuration.Scale * _guideThemeProvider.DefaultWindowWidth;
-            Configuration.DrawableHeight = Configuration.Scale * _guideThemeProvider.DefaultWindowHeight;
+            Configuration.DrawableWidth = Configuration.Scale * _esquireGuideThemeProvider.DefaultWindowWidth;
+            Configuration.DrawableHeight = Configuration.Scale * _esquireGuideThemeProvider.DefaultWindowHeight;
             _logger.LogInformation(@"[Window] Drawable Size: {Width} x {Height}", Configuration.DrawableWidth,
                 Configuration.DrawableHeight);
 
-            Configuration.RenderedWidth = (int)(smallerScale * _guideThemeProvider.DefaultWindowWidth);
-            Configuration.RenderedHeight = (int)(smallerScale * _guideThemeProvider.DefaultWindowHeight);
+            Configuration.RenderedWidth = (int)(smallerScale * _esquireGuideThemeProvider.DefaultWindowWidth);
+            Configuration.RenderedHeight = (int)(smallerScale * _esquireGuideThemeProvider.DefaultWindowHeight);
             _logger.LogInformation(@"[Window] Rendered: {Width} x {Height}", Configuration.RenderedWidth, Configuration.RenderedHeight);
 
             Configuration.X = (windowWidthPixels - Configuration.RenderedWidth) / 2;
@@ -279,7 +280,7 @@ public class Guide : IDisposable
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
 
             var c = 0;
-            foreach (var row in _guideThemeProvider.GenerateRows(listings))
+            foreach (var row in _esquireGuideThemeProvider.GenerateRows(listings))
             {
                 _textureManager[$"row{c}"] = row;
                 c++;
@@ -304,7 +305,7 @@ public class Guide : IDisposable
         {
             using (_ = new RenderingTarget(_renderer, _textureManager["guide"]))
             {
-                InternalSDL3.SetRenderDrawColor(_renderer, _guideThemeProvider.DefaultGuideBackground);
+                InternalSDL3.SetRenderDrawColor(_renderer, _esquireGuideThemeProvider.DefaultGuideBackground);
                 SDL.RenderClear(_renderer);
 
                 var y = 0f;
@@ -319,7 +320,7 @@ public class Guide : IDisposable
                         {
                             X = 0,
                             Y = y,
-                            W = width * _guideThemeProvider.ScaleRatio,
+                            W = width * _esquireGuideThemeProvider.ScaleRatio,
                             H = height
                         };
 

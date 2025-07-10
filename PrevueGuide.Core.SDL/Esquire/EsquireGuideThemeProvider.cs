@@ -7,6 +7,11 @@ using PrevueGuide.Core.Utilities;
 
 namespace PrevueGuide.Core.SDL.Esquire;
 
+// Note:
+// The arrows look thin because of how they're rendering. The top is 1 pixel
+// when it should really be like 2-3 ... so maybe i can move it over a little
+// and draw a rect?
+
 public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 {
     private const string PrevueFontName = "PrevueGrid";
@@ -247,7 +252,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                         SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
                     }
 
-                    yOffset += _fontManager.FontConfigurations[PrevueFontName].PointSize - 1;
+                    yOffset += _fontManager.FontConfigurations[PrevueFontName].PointSize - Configuration.Scale;
                     lineNumber++;
                 }
 
@@ -284,7 +289,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                 var selectedFont = _fontManager.FontConfigurations[PrevueFontName];
 
                 _ = SDL3.SDL.GetTextureSize(channelLine1.SdlTexture, out var w1, out var h1);
-                var wOffset1 = (90 - (w1 / Configuration.Scale) / 2) + 8;
+                var wOffset1 = (90 - (w1 / Configuration.Scale) / 2);
                 var dstRect1 = new SDL3.SDL.FRect
                 {
                     H = h1,
@@ -295,7 +300,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                 _ = SDL3.SDL.RenderTexture(_renderer, channelLine1.SdlTexture, IntPtr.Zero, in dstRect1);
 
                 _ = SDL3.SDL.GetTextureSize(channelLine2.SdlTexture, out var w2, out var h2);
-                var wOffset2 = (90 - (w2 / Configuration.Scale) / 2) + 8;
+                var wOffset2 = (90 - (w2 / Configuration.Scale) / 2);
                 var dstRect2 = new SDL3.SDL.FRect
                 {
                     H = h2,
