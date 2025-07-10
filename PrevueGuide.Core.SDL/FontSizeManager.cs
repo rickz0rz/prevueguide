@@ -1,6 +1,6 @@
 namespace PrevueGuide.Core.SDL;
 
-public class FontSizeManager
+public class FontSizeManager : IDisposable
 {
     private nint _engine;
     private nint _font;
@@ -22,12 +22,19 @@ public class FontSizeManager
             if (!_map.ContainsKey(key))
             {
                 var text = SDL3.TTF.CreateText(_engine, _font, key, 0);
-                SDL3.TTF.GetTextSize(text, out var w, out var h);
+                // var didThing = SDL3.TTF.GetTextSize(text, out var w, out var h);
+                var didThing = InternalSDL3.GetTextSize(text, out var w, out var h);
                 _map[key] = (w, h);
+                SDL3.TTF.DestroyText(text);
             }
 
             return _map[key];
         }
+    }
+
+    public void Dispose()
+    {
+        SDL3.TTF.DestroySurfaceTextEngine(_engine);
     }
 }
 

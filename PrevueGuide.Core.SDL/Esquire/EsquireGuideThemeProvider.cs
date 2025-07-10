@@ -7,7 +7,7 @@ using PrevueGuide.Core.Utilities;
 
 namespace PrevueGuide.Core.SDL.Esquire;
 
-public class EsquireGuideThemeProvider : IGuideThemeProvider
+public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 {
     private const int ChannelColumnWidth = 144;
     private const int StandardRowHeight = 56;
@@ -20,11 +20,13 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
 
     private readonly ILogger _logger;
     private readonly FontManager _fontManager;
+    private readonly FontSizeManager _fontSizeManager;
 
     public EsquireGuideThemeProvider(ILogger logger)
     {
         _logger = logger;
         _fontManager = new FontManager(logger);
+        _fontSizeManager = new FontSizeManager(_fontManager["PrevueGrid"]);
     }
 
     public void SetRenderer(nint renderer)
@@ -99,10 +101,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
                 p.StartTime <= channelListing.FirstColumnStartTime && p.EndTime >= lastColumnEndTime)
             .ToList();
 
-        // Only allow multi-line if there's 1 listing.
-        // var canBePast2Lines = programs.Count == 1;
-        var canBePast2Lines = true;
-
+        var canBePast2Lines = programs.Count == 1;
         var programTextures = new List<Texture>();
 
         foreach (var program in programs)
@@ -172,14 +171,16 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
 
             if (canBePast2Lines && textLines.Count > 2)
             {
-                lines = textLines.Count;
+                textLines = textLines.Take(6).ToList(); // Take up to 6 lines.
             }
             else
             {
                 textLines = textLines.Take(2).ToList();
             }
 
-            height = (lines * 24) + 8;
+            lines = textLines.Count;
+
+            height = (lines < 2 ? 2 : lines) * 24 + 8;
             var yOffset = 0;
 
             var programTexture = new Texture(_renderer, width, height);
@@ -224,27 +225,26 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
 
                 foreach (var textLine in textLines)
                 {
-                    using var listingLine = new Texture(GenerateDropShadowText(_renderer,
-                        _fontManager["PrevueGrid"],
-                        textLine, Colors.Gray170, Configuration.Scale));
-
-                    SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
-
-                    var computedLeftMargin = lineNumber < 2 ? leftMargin : 0;
-                    var computedRightMargin = lineNumber < 2 ? rightMargin : 0;
-
-                    var rect = new SDL3.SDL.FRect
+                    using (var listingLine = new Texture(GenerateDropShadowText(_renderer,
+                               _fontManager["PrevueGrid"],
+                               textLine, Colors.Gray170, Configuration.Scale)))
                     {
-                        X = (5 + computedLeftMargin) * Configuration.Scale,
-                        Y = (5 + yOffset) * Configuration.Scale,
-                        W = w - (computedLeftMargin + computedRightMargin) * Configuration.Scale,
-                        H = h
-                    };
+                        SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
 
-                    SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
+                        var computedLeftMargin = lineNumber < 2 ? leftMargin : 0;
+                        var rect = new SDL3.SDL.FRect
+                        {
+                            X = (5 + computedLeftMargin) * Configuration.Scale,
+                            Y = (5 + yOffset) * Configuration.Scale,
+                            W = w,
+                            H = h
+                        };
 
-                    yOffset += _fontManager.FontConfigurations["PrevueGrid"].PointSize;
-                    lineNumber++;
+                        SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
+
+                        yOffset += _fontManager.FontConfigurations["PrevueGrid"].PointSize - 1;
+                        lineNumber++;
+                    }
                 }
 
                 // Add a bevel.
@@ -318,9 +318,82 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
         return rowTexture;
     }
 
-    private List<string> GetTextLines(int leftMargin, int rightMargin, int columnWidth, string text)
+    private List<string> GetTextLines(int leftMargin, int rightMargin, int columnWidth, string targetString)
     {
-        return new List<string> { text, "abc", "123" };
+        var currentLineLength = 0;
+        var currentLineNumber = 0;
+        var currentLine = string.Empty;
+        var renderedLines = new List<string>();
+        var lineWidth = columnWidth - leftMargin - rightMargin;
+
+        foreach (var component in targetString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var componentLength = component.ToCharArray().Select(c => _fontSizeManager[$"{c}"]).Sum(v => v.width);
+            var paddedComponentLength = (string.IsNullOrWhiteSpace(currentLine) ? 0 : _fontSizeManager[' '].width) + componentLength;
+
+            if (currentLineLength + paddedComponentLength > lineWidth)
+            {
+                if (!string.IsNullOrWhiteSpace(currentLine))
+                {
+                    renderedLines.Add(currentLine);
+                    currentLine = component;
+                    currentLineLength = componentLength;
+
+                    currentLineNumber++;
+                    lineWidth = currentLineNumber >= 2
+                        ? columnWidth
+                        : columnWidth - leftMargin - rightMargin;
+                }
+                else
+                {
+                    // We have to split the line in the middle somewhere.
+                    var chars = component.ToCharArray();
+                    var componentSubLength = 0;
+                    var chunk = string.Empty;
+
+                    foreach (var targetChar in chars)
+                    {
+                        var glyphWidth = _fontSizeManager[targetChar].width;
+                        var newSubLength = componentSubLength + glyphWidth;
+
+                        if (newSubLength > lineWidth)
+                        {
+                            renderedLines.Add(chunk);
+                            chunk = string.Empty;
+                            componentSubLength = 0;
+
+                            currentLineNumber++;
+                            lineWidth = currentLineNumber >= 2
+                                ? columnWidth
+                                : columnWidth - leftMargin - rightMargin;
+                        }
+
+                        chunk = $"{chunk}{targetChar}";
+                        componentSubLength += glyphWidth;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(chunk))
+                    {
+                        var padding = string.IsNullOrWhiteSpace(currentLine) ? string.Empty : " ";
+                        currentLine = $"{currentLine}{padding}{chunk}";
+                        currentLineLength += componentSubLength;
+                    }
+                }
+            }
+            else
+            {
+                var padding = string.IsNullOrWhiteSpace(currentLine) ? string.Empty : " ";
+                currentLine = $"{currentLine}{padding}{component}";
+                currentLineLength += paddedComponentLength;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentLine))
+        {
+            renderedLines.Add(currentLine);
+        }
+
+        return renderedLines;
     }
 
     private void DrawSingleLeftArrow()
@@ -597,5 +670,11 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider
         }
 
         return resultTexture;
+    }
+
+    public void Dispose()
+    {
+        _fontSizeManager.Dispose();
+        _fontManager.Dispose();
     }
 }

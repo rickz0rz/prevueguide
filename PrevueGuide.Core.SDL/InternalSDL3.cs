@@ -72,4 +72,24 @@ public static partial class InternalSDL3
     {
         return SDL3.SDL.SetRenderDrawColor(renderer, color.R, color.G, color.B, color.A);
     }
+
+    [LibraryImport("SDL3_ttf", EntryPoint = "TTF_GetTextSize"), UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    // [return: MarshalAs(UnmanagedType.I1)]
+    private static partial sbyte GetTextSize(nint text, nint w, nint h);
+
+    public static bool GetTextSize(nint text, out int w, out int h)
+    {
+        var wp = IntPtr.Zero;
+        var hp = IntPtr.Zero;
+
+        var retval = GetTextSize(text, wp, hp);
+
+        w = (int)wp;
+        h = (int)hp;
+
+        Marshal.FreeHGlobal(wp);
+        Marshal.FreeHGlobal(hp);
+
+        return retval == 1;
+    }
 }
