@@ -14,8 +14,10 @@ public class TextureManager : IDisposable
         get => _textureMap[key];
         set
         {
+            _logger.LogInformation($"Setting texture {key}");
             if (_textureMap.TryGetValue(key, out var texture))
             {
+                _logger.LogInformation($"Texture already exists, replacing texture {key}");
                 texture?.Dispose();
             }
             _textureMap[key] = value;

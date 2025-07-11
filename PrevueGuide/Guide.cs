@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using PrevueGuide.Core;
 using PrevueGuide.Core.Data.ChannelsDVR;
 using PrevueGuide.Core.Logging;
-using PrevueGuide.Core.Model.Listings.Channel;
 using PrevueGuide.Core.SDL;
 using PrevueGuide.Core.SDL.Esquire;
 using PrevueGuide.Core.SDL.Wrappers;
@@ -19,6 +18,8 @@ namespace PrevueGuide;
 // If so, can we do something to make it so we can procedurally create the textures instead of doing them all in one-shot to make the delay less obvious?
 // At any given time, we need enough guide elements to render the whole screen filled. The guide is presented by being shifted down (or up?) a specific amount.
 // Don't rerender every element if they have not changed.
+// Allow listings provider to cache listings if they're not updated and silently update them in the background
+//     if they need to be...? Maybe have it on a timer and do it async.
 
 public class Guide : IDisposable
 {
@@ -42,6 +43,12 @@ public class Guide : IDisposable
 
     private ContainedLineLogger _containedLineLogger;
     private long _lastLinesLoggedCount = -1;
+
+    private const int MaximumNumberOfRows = 10;
+
+    private IEnumerator<Texture> _rowsTextureSource;
+    private Queue<Texture> _rowsTextureQueue = new();
+    private ChannelsDVRListingsDataProvider provider;
 
     public Guide(ILogger logger)
     {
@@ -108,6 +115,10 @@ public class Guide : IDisposable
         }
 
         _esquireGuideThemeProvider.SetRenderer(_renderer);
+
+        var now = DateTime.Now;
+        provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
+        provider.PrevueChannelNumber = 1;
 
         SetFullscreen();
         SetVSync();
@@ -212,6 +223,12 @@ public class Guide : IDisposable
             {
                 switch (sdlEvent.Key.Key)
                 {
+                    case SDL.Keycode.D:
+                        _ = _rowsTextureQueue.Dequeue();
+                        _ = _rowsTextureQueue.Dequeue();
+                        _ = _rowsTextureQueue.Dequeue();
+                        CheckIfQueueFilled();
+                        break;
                     case SDL.Keycode.F:
                         _fullscreen = !_fullscreen;
                         SetFullscreen();
@@ -261,15 +278,7 @@ public class Guide : IDisposable
     {
         try
         {
-            for (var i = 0; i < 5; i++)
-                _textureManager.PurgeTexture($"row{i}");
-
             _textureManager.PurgeTexture("guide");
-
-            var now = DateTime.Now;
-            var provider = new ChannelsDVRListingsDataProvider(_logger, "http://192.168.0.195:8089");
-            provider.PrevueChannelNumber = 1;
-            var listings = provider.GetEntries().ToBlockingEnumerable();
 
             /*
             listings = listings.Where(listing => listing is ChannelListing)
@@ -278,19 +287,36 @@ public class Guide : IDisposable
                 */
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-
-            var c = 0;
-            foreach (var row in _esquireGuideThemeProvider.GenerateRows(listings))
-            {
-                _textureManager[$"row{c}"] = row;
-                c++;
-                if (c >= 5)
-                    break;
-            }
+            CheckIfQueueFilled();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, ex.Message);
+        }
+    }
+
+    private int GetQueueHeight()
+    {
+        return _rowsTextureQueue.Select(texture =>
+        {
+            SDL.GetTextureSize(texture.SdlTexture, out _, out var h);
+            return (int)h;
+        }).Sum();
+    }
+
+    private void CheckIfQueueFilled()
+    {
+        // Generate enough rows to fill the queue.
+        while (GetQueueHeight() < Configuration.RenderedHeight)
+        {
+            if (_rowsTextureSource == null || !_rowsTextureSource.MoveNext())
+            {
+                var listings = provider.GetEntries().ToBlockingEnumerable();
+                _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
+                _rowsTextureSource.MoveNext();
+            }
+
+            _rowsTextureQueue.Enqueue(_rowsTextureSource.Current);
         }
     }
 
@@ -309,24 +335,20 @@ public class Guide : IDisposable
                 SDL.RenderClear(_renderer);
 
                 var y = 0f;
-                foreach (var t in new[] { "row0", "row1", "row2", "row3", "row4" })
+
+                foreach (var row in _rowsTextureQueue)
                 {
-                    var row = _textureManager[t];
-
-                    if (row != null)
+                    _ = SDL.GetTextureSize(row.SdlTexture, out var width, out var height);
+                    var dstFRect = new SDL.FRect
                     {
-                        _ = SDL.GetTextureSize(row.SdlTexture, out var width, out var height);
-                        var dstFRect = new SDL.FRect
-                        {
-                            X = 0,
-                            Y = y,
-                            W = width * _esquireGuideThemeProvider.ScaleRatio,
-                            H = height
-                        };
+                        X = 0,
+                        Y = y,
+                        W = width * _esquireGuideThemeProvider.ScaleRatio,
+                        H = height
+                    };
 
-                        _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
-                        y += (height / Configuration.Scale);
-                    }
+                    _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
+                    y += (height / Configuration.Scale);
                 }
             }
         }

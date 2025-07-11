@@ -4,7 +4,9 @@ namespace PrevueGuide.Core.SDL.Esquire;
 
 public static class Frame
 {
-    public static void CreateBevelOnTexture(nint renderer, Texture texture, int bevelSize = 4)
+    public const int BevelSize = 4;
+
+    public static void CreateBevelOnTexture(nint renderer, Texture texture, int bevelSize = BevelSize)
     {
         _ = SDL3.SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
 
