@@ -41,7 +41,8 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         {
             yield return new ChannelListing
             {
-                CallSign = "PREVUE",
+                // CallSign = "PREVUE",
+                CallSign = "GUIDE",
                 ChannelNumber = "1",
                 FirstColumnStartTime = startTime,
                 Programs =
@@ -50,8 +51,8 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
                     {
                         StartTime = now.AddHours(-4),
                         EndTime = now.AddHours(4),
-                        Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
-                        // Title = "Paid Program",
+                        // Title = Font.FormatWithFontTokens("Before you view... %PREVUE%!"),
+                        Title = "Can't decide? Check out the GUIDE!",
                         IsMovie = false,
                         Description = "",
                         IsClosedCaptioned = false,

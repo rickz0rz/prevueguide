@@ -29,7 +29,7 @@ public class Guide : IDisposable
     private readonly IGuideThemeProvider _esquireGuideThemeProvider;
 
     private List<int> _frameTimes;
-    private int _updateFPSCounter;
+    private int _updateFPSFrameCounter;
 
     private IntPtr _window;
     private IntPtr _renderer;
@@ -335,7 +335,7 @@ public class Guide : IDisposable
     {
         SDL.SetRenderTarget(_renderer, IntPtr.Zero);
 
-        _ = InternalSDL3.SetRenderDrawColor(_renderer, new SDL.Color { A = 255, R = 0, G = 0, B = 0 });
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black0);
         _ = SDL.RenderClear(_renderer);
 
         if (_textureManager["guide"] != null)
@@ -389,24 +389,17 @@ public class Guide : IDisposable
 
     private void RenderFps()
     {
-        if (_updateFPSCounter == 0)
+        if (_updateFPSFrameCounter == 0)
         {
-            _updateFPSCounter = 30;
-
-            var font = _fontManager["FiraCode"];
-            var lineHeight = _fontManager.FontConfigurations["FiraCode"].PointSize;
-            var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
+            _updateFPSFrameCounter = 30;
 
             var fps = 1000 / _frameTimes.Average();
-            var l = $"{fps:0.00 FPS}";
-
-            using var surface = new Surface(TTF.RenderTextBlended(font, l, 0, yellow));
-
+            using var surface = new Surface(TTF.RenderTextBlended(_fontManager["FiraCode"], $"{fps:0.00 FPS}", 0, Colors.Yellow));
             _textureManager["fps"] = new Texture(SDL.CreateTextureFromSurface(_renderer, surface.SdlSurface));
         }
         else
         {
-            _updateFPSCounter--;
+            _updateFPSFrameCounter--;
         }
 
         if (_textureManager["fps"] != null)
