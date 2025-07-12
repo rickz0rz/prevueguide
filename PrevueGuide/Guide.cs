@@ -350,9 +350,10 @@ public class Guide : IDisposable
                 foreach (var row in _rowsTextureQueue)
                 {
                     _ = SDL.GetTextureSize(row.SdlTexture, out var width, out var height);
+
                     var dstFRect = new SDL.FRect
                     {
-                        X = 0,
+                        X = (Configuration.DrawableWidth - width) / 2,
                         Y = y,
                         W = width * _esquireGuideThemeProvider.ScaleRatio,
                         H = height
