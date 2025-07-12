@@ -106,8 +106,6 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
     {
         var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
         var columnsCount = screenScaledWidth / StandardColumnWidth;
-
-        var textureHeight = StandardRowHeight;
         var textureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);
 
         var lastColumnEndTime = channelListing.FirstColumnStartTime.AddMinutes(30 * (columnsCount + 1));
@@ -267,7 +265,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         {
             SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
             return h;
-        });
+        }) / Configuration.Scale;
 
         var rowTexture = new Texture(_renderer, textureWidth, (int)maximumTextureHeight);
 
@@ -278,7 +276,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         }
 
         // Draw the channel frame.
-        var unscaledMaximumTextureHeight = (int)maximumTextureHeight / Configuration.Scale;
+        var unscaledMaximumTextureHeight = (int)maximumTextureHeight;
         var nextXPosition = DrawChannelInformation(channelListing, unscaledMaximumTextureHeight, rowTexture);
 
         foreach (var programTexture in programTextures)
@@ -326,7 +324,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
         using var openedImageTexture = new Texture(_logger, _renderer, imageListing.Filename);
         SDL3.SDL.GetTextureSize(openedImageTexture.SdlTexture, out var w, out var h);
-        var imageTexture = new Texture(_renderer, guideTextureWidth, (int)h * Configuration.Scale);
+        var imageTexture = new Texture(_renderer, guideTextureWidth, (int)h);
 
         using (_ = new RenderingTarget(_renderer, imageTexture))
         {

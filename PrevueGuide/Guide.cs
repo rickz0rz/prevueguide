@@ -39,11 +39,13 @@ public class Guide : IDisposable
     private bool _highDpi = true;
     private bool _vsync = true;
     private bool _fullscreen;
+    private bool _thirtyFpsLimit = false;
     private FullscreenMode _currentFullscreenMode;
 
     private ContainedLineLogger _containedLineLogger;
     private long _lastLinesLoggedCount = -1;
     private float _guideRowBaseY = 0f;
+    private float _scrollSpeed = 0f;
 
     private IEnumerator<Texture> _rowsTextureSource;
     private Queue<Texture> _rowsTextureQueue = new();
@@ -77,8 +79,17 @@ public class Guide : IDisposable
         while (_running)
         {
             stopWatch.Start();
+
             PollEvents();
             Render();
+
+            if (_thirtyFpsLimit)
+            {
+                var delay = 33 - stopWatch.Elapsed.Milliseconds;
+                if (delay > 0)
+                    Thread.Sleep(delay);
+            }
+
             stopWatch.Stop();
 
             while (_frameTimes.Count >= 10)
@@ -222,6 +233,14 @@ public class Guide : IDisposable
             {
                 switch (sdlEvent.Key.Key)
                 {
+                    case SDL.Keycode.Equals:
+                        _scrollSpeed += 0.125f;
+                        break;
+                    case SDL.Keycode.Minus:
+                        _scrollSpeed -= 0.125f;
+                        if (_scrollSpeed < 0)
+                            _scrollSpeed = 0f;
+                        break;
                     case SDL.Keycode.D:
 
                         for (var i = 0; i < 3; i++)
@@ -252,8 +271,12 @@ public class Guide : IDisposable
                         if (_fullscreen)
                         {
                             SetScaleFromWindowSize();
-                            TestGenerateFrameTexture();
+                            InitializeGuideTexture();
                         }
+                        break;
+                    case SDL.Keycode.T:
+                        _thirtyFpsLimit = !_thirtyFpsLimit;
+                        _logger.LogInformation("30 FPS Limit: {ThirtyFpsLimit}", _thirtyFpsLimit);
                         break;
                     case SDL.Keycode.Q:
                         _running = false;
@@ -271,12 +294,12 @@ public class Guide : IDisposable
             else if (sdlEvent.Type == (uint)SDL.EventType.WindowPixelSizeChanged)
             {
                 SetScaleFromWindowSize();
-                TestGenerateFrameTexture();
+                InitializeGuideTexture();
             }
         }
     }
 
-    private void TestGenerateFrameTexture()
+    private void InitializeGuideTexture()
     {
         try
         {
@@ -309,30 +332,26 @@ public class Guide : IDisposable
 
     private int GetQueueHeight()
     {
+        var height = 0;
+
+        foreach (var texture in _rowsTextureQueue)
+        {
+            SDL.GetTextureSize(texture.SdlTexture, out _, out var h);
+            height += (int)h;
+        }
+
+        return height;
+
+        /*
         return _rowsTextureQueue.Select(texture =>
         {
             SDL.GetTextureSize(texture.SdlTexture, out _, out var h);
             return (int)h;
         }).Sum();
+        */
     }
 
-    private void CheckIfQueueFilled()
-    {
-        // Generate enough rows to fill the queue.
-        while (GetQueueHeight() < Configuration.RenderedHeight)
-        {
-            if (_rowsTextureSource == null || !_rowsTextureSource.MoveNext())
-            {
-                _logger.LogInformation("Filling row queue");
-                var listings = provider.GetEntries().ToBlockingEnumerable();
-                _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
-                _rowsTextureSource.MoveNext();
-            }
-
-            _rowsTextureQueue.Enqueue(_rowsTextureSource.Current);
-        }
-    }
-
+    // Hacky thing: How do I add extra records to the queue?
     private void Render()
     {
         SDL.SetRenderTarget(_renderer, IntPtr.Zero);
@@ -361,14 +380,14 @@ public class Guide : IDisposable
                     };
 
                     _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
-                    y += (height / Configuration.Scale);
+                    y += height;
 
-                    _guideRowBaseY += (0.125f * Configuration.Scale);
+                    _guideRowBaseY += ((_thirtyFpsLimit ? 0.125f : 0.0625f) + _scrollSpeed) * Configuration.Scale;
                 }
 
                 // If the baseY position is the same as its height, dequeue it.
                 SDL.GetTextureSize(_rowsTextureQueue.First().SdlTexture, out _, out var firstH);
-                if (_guideRowBaseY * Configuration.Scale >= firstH)
+                if (_guideRowBaseY >= firstH)
                 {
                     _ = _rowsTextureQueue.Dequeue();
                     CheckIfQueueFilled();
@@ -382,6 +401,7 @@ public class Guide : IDisposable
         {
             X = Configuration.X,
             Y = Configuration.RenderedHeight - (175 * Configuration.Scale),
+            // Y = Configuration.Y,
             W = Configuration.RenderedWidth,
             H = Configuration.RenderedHeight
         };
@@ -398,6 +418,22 @@ public class Guide : IDisposable
         }
 
         _ = SDL.RenderPresent(_renderer);
+    }
+
+    private void CheckIfQueueFilled()
+    {
+        while ((GetQueueHeight() - _guideRowBaseY) < Configuration.RenderedHeight)
+        {
+            if (_rowsTextureSource == null || !_rowsTextureSource.MoveNext())
+            {
+                _logger.LogInformation("Filling row queue");
+                var listings = provider.GetEntries().ToBlockingEnumerable();
+                _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
+                _rowsTextureSource.MoveNext();
+            }
+
+            _rowsTextureQueue.Enqueue(_rowsTextureSource.Current);
+        }
     }
 
     private void RenderFps()
