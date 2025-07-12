@@ -11,6 +11,11 @@ namespace PrevueGuide.Core.SDL.Esquire;
 // The arrows look thin because of how they're rendering. The top is 1 pixel
 // when it should really be like 2-3 ... so maybe i can move it over a little
 // and draw a rect?
+// How do I handle the time being drawn? Ugh. Pass in the guide texture to a "draw time" method? Return the entire time bar?
+// Make the time bar generate as a default set of value if it hasn't run yet (like when the guide is starting up to emulate how it
+// looks on ESQ)
+// Draw time bar last. When the time is refreshing, re-draw the time onto the time bar. When that's happening, or when the time bar is updating with new half hour blocks,
+// always redraw the time clock frame.
 
 public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 {
@@ -18,6 +23,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
     private const int ChannelColumnWidth = 144;
     private const int StandardRowHeight = 56;
+    private const int TimeBarHeight = 34;
     private const int StandardColumnWidth = 172;
     private const int LastColumnWidth = StandardColumnWidth + 36;
     private const int SingleArrowWidth = 16;
@@ -42,7 +48,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         _renderer = renderer;
     }
 
-    public SDL3.SDL.Color DefaultGuideBackground => Colors.DefaultBlue; // Might remove this in favor of a "render background" method.
+    public SDL3.SDL.Color DefaultGuideBackground => Colors.Blue48;
     public int DefaultWindowWidth => 716;
     public int DefaultWindowHeight => 436;
     public float ScaleRatio => 1f;
@@ -87,6 +93,10 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         {
             if (listing.GetType() == typeof(ChannelListing))
                 yield return GenerateChannelListingTexture((ChannelListing)listing);
+            else if (listing.GetType() == typeof(TimeBarListing))
+                yield return GenerateTimeBarListingTexture((TimeBarListing)listing);
+            else if (listing.GetType() == typeof(ImageListing))
+                yield return GenerateImageListing((ImageListing)listing);
             else
                 throw new NotImplementedException(listing.GetType().Name);
         }
@@ -94,7 +104,6 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
     private Texture GenerateChannelListingTexture(ChannelListing channelListing)
     {
-        var height = StandardRowHeight;
         var lines = 2;
 
         var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
@@ -104,13 +113,8 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         var textureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);
 
         var lastColumnEndTime = channelListing.FirstColumnStartTime.AddMinutes(30 * (columnsCount + 1));
-
         var programs = channelListing.Programs
             .OrderBy(p => p.StartTime)
-            .Where(p =>
-                p.StartTime <= channelListing.FirstColumnStartTime && p.EndTime >= channelListing.FirstColumnStartTime ||
-                p.StartTime <= lastColumnEndTime && p.EndTime >= lastColumnEndTime ||
-                p.StartTime <= channelListing.FirstColumnStartTime && p.EndTime >= lastColumnEndTime)
             .ToList();
 
         var canBePast2Lines = programs.Count == 1;
@@ -193,7 +197,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
             lines = textLines.Count;
 
-            height = (lines < 2 ? 2 : lines) * 24 + 8;
+            var height = (lines < 2 ? 2 : lines) * 24 + 8;
             var yOffset = 0;
 
             var programTexture = new Texture(_renderer, width, height);
@@ -270,6 +274,11 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
         var rowTexture = new Texture(_renderer, textureWidth, (int)maximumTextureHeight);
 
+        using (_ = new RenderingTarget(_renderer, rowTexture))
+        {
+            InternalSDL3.SetRenderDrawColor(_renderer, Colors.Blue81);
+            SDL3.SDL.RenderClear(_renderer);
+        }
 
         // Draw the channel frame.
         var unscaledMaximumTextureHeight = (int)maximumTextureHeight / Configuration.Scale;
@@ -296,6 +305,53 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         return rowTexture;
     }
 
+    private Texture GenerateTimeBarListingTexture(TimeBarListing timeBarListing)
+    {
+        var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
+        var columnsCount = screenScaledWidth / StandardColumnWidth;
+        var guideTextureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);
+        var timeBarTexture = new Texture(_renderer, guideTextureWidth, TimeBarHeight * Configuration.Scale);
+
+        using (_ = new RenderingTarget(_renderer, timeBarTexture))
+        {
+            InternalSDL3.SetRenderDrawColor(_renderer, Colors.Blue131);
+            SDL3.SDL.RenderClear(_renderer);
+        }
+
+        return timeBarTexture;
+    }
+
+    private Texture GenerateImageListing(ImageListing imageListing)
+    {
+        var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
+        var columnsCount = screenScaledWidth / StandardColumnWidth;
+        var guideTextureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);
+
+        using var openedImageTexture = new Texture(_logger, _renderer, imageListing.Filename);
+        SDL3.SDL.GetTextureSize(openedImageTexture.SdlTexture, out var w, out var h);
+        var imageTexture = new Texture(_renderer, guideTextureWidth, (int)h * Configuration.Scale);
+
+        using (_ = new RenderingTarget(_renderer, imageTexture))
+        {
+            InternalSDL3.SetRenderDrawColor(_renderer, Colors.Blue81);
+            SDL3.SDL.RenderClear(_renderer);
+
+            // Todo: If the image is bigger than the texture width, scale it down to fit. Useful for high-res images.
+
+            var dstRect = new SDL3.SDL.FRect
+            {
+                X = ((guideTextureWidth - w) / 2) * Configuration.Scale,
+                Y = 0,
+                W = w * Configuration.Scale,
+                H = h * Configuration.Scale
+            };
+
+            SDL3.SDL.RenderTexture(_renderer, openedImageTexture.SdlTexture, IntPtr.Zero, dstRect);
+        }
+
+        return imageTexture;
+    }
+
     private float DrawChannelInformation(ChannelListing channelListing, int unscaledMaximumTextureHeight,
         Texture rowTexture)
     {
@@ -316,7 +372,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             var selectedFont = _fontManager.FontConfigurations[PrevueFontName];
 
             _ = SDL3.SDL.GetTextureSize(channelLine1.SdlTexture, out var w1, out var h1);
-            var xOffset1 = (90 - (w1 / Configuration.Scale) / 2);
+            var xOffset1 = (90 - (w1 / Configuration.Scale) / 2) - 1;
             var dstRect1 = new SDL3.SDL.FRect
             {
                 H = h1,
@@ -327,13 +383,13 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             _ = SDL3.SDL.RenderTexture(_renderer, channelLine1.SdlTexture, IntPtr.Zero, in dstRect1);
 
             _ = SDL3.SDL.GetTextureSize(channelLine2.SdlTexture, out var w2, out var h2);
-            var xOffset2 = (90 - (w2 / Configuration.Scale) / 2);
+            var xOffset2 = (90 - (w2 / Configuration.Scale) / 2) - 1;
             var dstRect2 = new SDL3.SDL.FRect
             {
                 H = h2,
                 W = w2,
                 X = (xOffset2 + selectedFont.XOffset) * Configuration.Scale,
-                Y = (selectedFont.PointSize - Configuration.Scale + BevelMargin) * Configuration.Scale
+                Y = (selectedFont.PointSize + BevelMargin) * Configuration.Scale
             };
             _ = SDL3.SDL.RenderTexture(_renderer, channelLine2.SdlTexture, IntPtr.Zero, in dstRect2);
         }

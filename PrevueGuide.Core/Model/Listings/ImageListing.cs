@@ -1,7 +1,6 @@
 namespace PrevueGuide.Core.Model.Listings;
 
-// Display an image.
-public class ImageListing : IListing
+public class ImageListing(string filename) : IListing
 {
-
+    public string Filename { get; set; } = filename;
 }

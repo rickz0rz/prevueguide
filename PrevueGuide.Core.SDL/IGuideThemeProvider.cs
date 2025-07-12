@@ -8,7 +8,7 @@ namespace PrevueGuide.Core.SDL;
 // data textures, time textures, and basically anything else that is related to a program guide.
 public interface IGuideThemeProvider
 {
-    SDL3.SDL.Color DefaultGuideBackground { get; }
+    SDL3.SDL.Color DefaultGuideBackground { get; } // Might remove this in favor of a "render background" method.
     int DefaultWindowWidth { get; }
     int DefaultWindowHeight { get; }
     float ScaleRatio { get; }

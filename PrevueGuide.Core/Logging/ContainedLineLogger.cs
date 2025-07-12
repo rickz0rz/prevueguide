@@ -12,7 +12,7 @@ public class ContainedLineLogger : ILogger
 
     private long _linesLogged;
 
-    public ContainedLineLogger(int maximumLineCount = 5)
+    public ContainedLineLogger(int maximumLineCount = 50)
     {
         Lines = [];
         _maximumLineCount = maximumLineCount;

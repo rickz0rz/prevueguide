@@ -44,8 +44,6 @@ public class Guide : IDisposable
     private ContainedLineLogger _containedLineLogger;
     private long _lastLinesLoggedCount = -1;
 
-    private const int MaximumNumberOfRows = 10;
-
     private IEnumerator<Texture> _rowsTextureSource;
     private Queue<Texture> _rowsTextureQueue = new();
     private ChannelsDVRListingsDataProvider provider;
@@ -200,8 +198,8 @@ public class Guide : IDisposable
         _logger.LogInformation($"SDL: Setting fullscreen to: {_fullscreen}");
         _ = SDL.SetWindowFullscreen(_window, _fullscreen);
 
-        SetScaleFromWindowSize();
-        TestGenerateFrameTexture();
+        // SetScaleFromWindowSize();
+        // TestGenerateFrameTexture();
     }
 
     private void SetVSync()
@@ -224,9 +222,12 @@ public class Guide : IDisposable
                 switch (sdlEvent.Key.Key)
                 {
                     case SDL.Keycode.D:
-                        _ = _rowsTextureQueue.Dequeue();
-                        _ = _rowsTextureQueue.Dequeue();
-                        _ = _rowsTextureQueue.Dequeue();
+
+                        for (var i = 0; i < 3; i++)
+                        {
+                            if (_rowsTextureQueue.Any())
+                                _ = _rowsTextureQueue.Dequeue();
+                        }
                         CheckIfQueueFilled();
                         break;
                     case SDL.Keycode.F:
@@ -287,6 +288,16 @@ public class Guide : IDisposable
                 */
 
             _textureManager["guide"] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
+
+            // Purge the queue
+            while (_rowsTextureQueue.Count > 0)
+            {
+                _rowsTextureQueue.Dequeue().Dispose();
+            }
+
+            var listings = provider.GetEntries().ToBlockingEnumerable();
+            _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
+
             CheckIfQueueFilled();
         }
         catch (Exception ex)
@@ -382,6 +393,7 @@ public class Guide : IDisposable
             _updateFPSCounter = 30;
 
             var font = _fontManager["FiraCode"];
+            var lineHeight = _fontManager.FontConfigurations["FiraCode"].PointSize;
             var yellow = new SDL.Color { A = 255, R = 255, G = 255, B = 0 };
 
             var fps = 1000 / _frameTimes.Average();
@@ -400,13 +412,15 @@ public class Guide : IDisposable
         {
             var texture = _textureManager["fps"];
 
+            var lineHeight = _fontManager.FontConfigurations["FiraCode"].PointSize;
+
             SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
             var rect = new SDL.FRect
             {
                 W = width,
                 H = height,
-                X = Configuration.WindowWidth - width,
-                Y = 0
+                X = 0,
+                Y = Configuration.RenderedHeight - lineHeight * Configuration.Scale
             };
 
             _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
@@ -433,7 +447,7 @@ public class Guide : IDisposable
         }
 
         var lineHeight = _fontManager.FontConfigurations[firaCodeFontName].PointSize;
-        var y = Configuration.WindowHeight - (lineHeight * Configuration.Scale * 5);
+        var y = Configuration.WindowHeight - (lineHeight * Configuration.Scale * 50);
 
         for (var i = 0; i < _containedLineLogger.Lines.Count; i++)
         {

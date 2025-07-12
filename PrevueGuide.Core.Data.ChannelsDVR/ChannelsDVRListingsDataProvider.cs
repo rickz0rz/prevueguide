@@ -34,6 +34,9 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         var guide = await GetGuide();
         _logger.LogInformation("Guide retrieved.");
 
+        yield return new TimeBarListing(startTime);
+        yield return new ImageListing("assets/images/guide-channel.png");
+
         if (PrevueChannelNumber.HasValue)
         {
             yield return new ChannelListing
