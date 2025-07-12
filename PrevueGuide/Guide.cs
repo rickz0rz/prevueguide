@@ -43,6 +43,7 @@ public class Guide : IDisposable
 
     private ContainedLineLogger _containedLineLogger;
     private long _lastLinesLoggedCount = -1;
+    private float _guideRowBaseY = 0f;
 
     private IEnumerator<Texture> _rowsTextureSource;
     private Queue<Texture> _rowsTextureQueue = new();
@@ -322,6 +323,7 @@ public class Guide : IDisposable
         {
             if (_rowsTextureSource == null || !_rowsTextureSource.MoveNext())
             {
+                _logger.LogInformation("Filling row queue");
                 var listings = provider.GetEntries().ToBlockingEnumerable();
                 _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
                 _rowsTextureSource.MoveNext();
@@ -344,8 +346,7 @@ public class Guide : IDisposable
             {
                 InternalSDL3.SetRenderDrawColor(_renderer, _esquireGuideThemeProvider.DefaultGuideBackground);
                 SDL.RenderClear(_renderer);
-
-                var y = 0f;
+                var y = 0 - _guideRowBaseY;
 
                 foreach (var row in _rowsTextureQueue)
                 {
@@ -361,14 +362,26 @@ public class Guide : IDisposable
 
                     _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
                     y += (height / Configuration.Scale);
+
+                    _guideRowBaseY += (0.125f * Configuration.Scale);
+                }
+
+                // If the baseY position is the same as its height, dequeue it.
+                SDL.GetTextureSize(_rowsTextureQueue.First().SdlTexture, out _, out var firstH);
+                if (_guideRowBaseY * Configuration.Scale >= firstH)
+                {
+                    _ = _rowsTextureQueue.Dequeue();
+                    CheckIfQueueFilled();
+                    _guideRowBaseY = 0f;
                 }
             }
         }
 
+        // Guide position = 175 from the bottom not including time bar.
         var guideFRect = new SDL.FRect
         {
             X = Configuration.X,
-            Y = Configuration.Y,
+            Y = Configuration.RenderedHeight - (175 * Configuration.Scale),
             W = Configuration.RenderedWidth,
             H = Configuration.RenderedHeight
         };

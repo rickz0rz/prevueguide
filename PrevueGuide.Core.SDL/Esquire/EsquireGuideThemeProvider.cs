@@ -104,8 +104,6 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
     private Texture GenerateChannelListingTexture(ChannelListing channelListing)
     {
-        var lines = 2;
-
         var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
         var columnsCount = screenScaledWidth / StandardColumnWidth;
 
@@ -195,8 +193,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                 textLines = textLines.Take(2).ToList();
             }
 
-            lines = textLines.Count;
-
+            var lines = textLines.Count;
             var height = (lines < 2 ? 2 : lines) * 24 + 8;
             var yOffset = 0;
 
@@ -337,6 +334,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             SDL3.SDL.RenderClear(_renderer);
 
             // Todo: If the image is bigger than the texture width, scale it down to fit. Useful for high-res images.
+            // Also maybe cap the height or allow it to be capped?
 
             var dstRect = new SDL3.SDL.FRect
             {

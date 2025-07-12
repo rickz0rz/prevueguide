@@ -10,11 +10,14 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 {
     private readonly ILogger _logger;
     private readonly string _address;
+    private DateTime _previousStartTime;
+    private JsonDocument _guideJsonData;
 
     public ChannelsDVRListingsDataProvider(ILogger logger, string address)
     {
         _logger = logger;
         _address = address;
+        _previousStartTime = DateTime.MinValue;
     }
 
     public bool RequiresManualUpdating => false;
@@ -30,12 +33,17 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
         var now = DateTime.Now;
         var startTime = Time.ClampToNextHalfHourIfTenMinutesAway(now);
 
-        _logger.LogInformation("Fetching guide entries...");
-        var guide = await GetGuide();
-        _logger.LogInformation("Guide retrieved.");
-
-        yield return new TimeBarListing(startTime);
+        // yield return new TimeBarListing(startTime);
         yield return new ImageListing("assets/images/guide-channel.png");
+
+        if (_previousStartTime != startTime)
+        {
+            _previousStartTime = startTime;
+
+            _logger.LogInformation("Guide data dirty, fetching new guide data...");
+            _guideJsonData = await GetGuide();
+            _logger.LogInformation("Guide data retrieved.");
+        }
 
         if (PrevueChannelNumber.HasValue)
         {
@@ -64,7 +72,7 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
             };
         }
 
-        foreach (var guideElement in guide.RootElement.EnumerateArray())
+        foreach (var guideElement in _guideJsonData.RootElement.EnumerateArray())
         {
             var channelElement = guideElement.GetProperty("Channel");
             var channelListing = new ChannelListing();
