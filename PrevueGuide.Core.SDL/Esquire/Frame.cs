@@ -103,7 +103,7 @@ public static class Frame
                          new ScaledFRect { H = bevelSize, W = bevelSize + 1, X = rect.X, Y = rect.Y }
                      })
             {
-                InternalSDL3.RenderFillRect(renderer, scaledFRect.ToFRect());
+                InternalSDL3.RenderFillRect(renderer, scaledFRect);
             }
 
             // Draw white triangles, upper left
@@ -163,7 +163,7 @@ public static class Frame
                          }
                      })
             {
-                InternalSDL3.RenderFillRect(renderer, scaledFRect.ToFRect());
+                InternalSDL3.RenderFillRect(renderer, scaledFRect);
             }
 
             // Draw black triangles, lower right

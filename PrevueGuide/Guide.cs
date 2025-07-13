@@ -21,6 +21,8 @@ namespace PrevueGuide;
 // Allow listings provider to cache listings if they're not updated and silently update them in the background
 //     if they need to be...? Maybe have it on a timer and do it async.
 // yank esq specific code out of guide.cs
+// https://github.com/sabdul-khabir/SDL3_gfx/tree/master use this to draw arrows?
+// Some shows starting at 5 minutes to aren't getting pushed into the right boundary
 
 public class Guide : IDisposable
 {
