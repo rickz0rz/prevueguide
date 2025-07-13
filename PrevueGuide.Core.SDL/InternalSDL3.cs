@@ -5,42 +5,40 @@ namespace PrevueGuide.Core.SDL;
 
 public static partial class InternalSDL3
 {
-
-    [LibraryImport("SDL3")]
-    private static partial sbyte SDL_RenderGeometry(nint renderer, nint texture, nint vertices, int numVertices, nint indices, int numIndices);
-
     public static bool RenderFillRect(nint renderer, ScaledFRect scaledFRect)
     {
         return SDL3.SDL.RenderFillRect(renderer,  scaledFRect.ToFRect());
     }
 
-    public static bool RenderGeometry(nint renderer, nint texture, IList<ScaledVertex> scaledVertices, int[] indices)
+    public static bool RenderGeometry(nint renderer, nint texture, IList<ScaledVertex> scaledVertices)
     {
-        /*
-        var verticesPtr = IntPtr.Zero;
+        return RenderGeometry(renderer, texture, scaledVertices, []);
+    }
+
+    public static bool RenderGeometry(nint renderer, nint texture, IList<ScaledVertex> scaledVertices, int[]? indices)
+    {
+        var vertices = scaledVertices.Select(s => s.ToVertex()).ToArray();
         var indicesPtr = IntPtr.Zero;
+        var indicesLength = 0;
+        bool result;
 
         try
         {
-            var regularVertexes = scaledVertices.Select(vertex => vertex.ToVertex());
-
-            verticesPtr = SDL3.SDL.StructureArrayToPointer(regularVertexes.ToArray());
-            indicesPtr = indices == null || indices.Count == 0
-                ? IntPtr.Zero
-                : SDL3.SDL.StructureArrayToPointer(indices.ToArray());
-
-            var numIndices = indices?.Count ?? 0;
-            return SDL_RenderGeometry(renderer, texture, verticesPtr, vertices.Count, indicesPtr, numIndices) == 1;
+            if (indices is { Length: > 0 })
+            {
+                indicesLength = indices.Length;
+                indicesPtr = Marshal.AllocCoTaskMem(Marshal.SizeOf(typeof(int)) * indices.Length);
+                Marshal.Copy(indices, 0, indicesPtr, indices.Length);
+            }
+            result = SDL3.SDL.RenderGeometry(renderer, texture, vertices, vertices.Length, indicesPtr, indicesLength);
         }
         finally
         {
-            if (verticesPtr != IntPtr.Zero) Marshal.FreeHGlobal(verticesPtr);
-            if (indicesPtr != IntPtr.Zero) Marshal.FreeHGlobal(indicesPtr);
-        }*/
+            if (indicesPtr != IntPtr.Zero)
+                Marshal.FreeHGlobal(indicesPtr);
+        }
 
-        var vertices = scaledVertices.Select(s => s.ToVertex()).ToArray();
-        // Something acts funny here with indices.. Might need to marshal the array. (See above.)
-        return SDL3.SDL.RenderGeometry(renderer, texture, vertices, vertices.Length, IntPtr.Zero, 0);
+        return result;
     }
 
     public static SDL3.SDL.FColor ToFColor(this SDL3.SDL.Color color)

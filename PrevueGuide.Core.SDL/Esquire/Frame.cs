@@ -72,7 +72,7 @@ public static class Frame
                     Position = new ScaledFPoint { X = bevelSize + rect.X, Y = rect.H - bevelSize + rect.Y }
                 }
             };
-            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListBottomLeft, null);
+            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListBottomLeft);
 
             // Draw white triangle, upper right.
             var vertexListUpperRight = new List<ScaledVertex>
@@ -93,7 +93,7 @@ public static class Frame
                     Position = new ScaledFPoint { X = rect.W - bevelSize + rect.X, Y = bevelSize + rect.Y }
                 }
             };
-            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperRight, null);
+            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperRight);
 
             // Render a block on the top-left that's going to be black to render triangles on
             _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelShadow);
@@ -125,7 +125,7 @@ public static class Frame
                     Position = new ScaledFPoint { X = bevelSize + rect.X, Y = bevelSize + 1 + rect.Y }
                 }
             };
-            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftA, null);
+            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftA);
 
             var vertexListUpperLeftB = new List<ScaledVertex>
             {
@@ -145,7 +145,7 @@ public static class Frame
                     Position = new ScaledFPoint { X = bevelSize + 1 + rect.X, Y = bevelSize + rect.Y }
                 }
             };
-            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftB, null);
+            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListUpperLeftB);
 
             // Render a block on the bottom-right that's going to be gray to render triangles on
             _ = InternalSDL3.SetRenderDrawColor(renderer, frameBevelShadowCorner);
@@ -187,7 +187,7 @@ public static class Frame
                         { X = rect.W - bevelSize + rect.X, Y = rect.H - (bevelSize + 1) + rect.Y }
                 }
             };
-            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightA, null);
+            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightA);
 
             var vertexListLowerRightB = new List<ScaledVertex>
             {
@@ -208,7 +208,7 @@ public static class Frame
                         { X = rect.W - (bevelSize + 1) + rect.X, Y = rect.H - bevelSize + rect.Y }
                 }
             };
-            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightB, null);
+            _ = InternalSDL3.RenderGeometry(renderer, IntPtr.Zero, vertexListLowerRightB);
         }
     }
 }
