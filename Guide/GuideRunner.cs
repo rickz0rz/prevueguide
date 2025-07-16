@@ -143,7 +143,7 @@ public class GuideRunner : IDisposable
 
     private void SetScaleFromWindowSize()
     {
-        SDL.GetWindowSizeInPixels(_window, out var windowWidthPixels, out var windowHeightPixels);
+        _ = SDL.GetWindowSizeInPixels(_window, out var windowWidthPixels, out var windowHeightPixels);
         Configuration.WindowWidth = windowWidthPixels;
         Configuration.WindowHeight = windowHeightPixels;
         _logger.LogInformation(@"[Window] Window Size: {Width} x {Height}", windowWidthPixels, windowHeightPixels);
@@ -324,7 +324,7 @@ public class GuideRunner : IDisposable
     {
         return _rowsTextureQueue.Select(texture =>
         {
-            SDL.GetTextureSize(texture.SdlTexture, out _, out var h);
+            _ = SDL.GetTextureSize(texture.SdlTexture, out _, out var h);
             return (int)h;
         }).Sum();
     }
@@ -332,19 +332,19 @@ public class GuideRunner : IDisposable
     // Hacky thing: How do I add extra records to the queue?
     private void Render()
     {
-        SDL.SetRenderTarget(_renderer, IntPtr.Zero);
+        _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
 
         _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black0);
         _ = SDL.RenderClear(_renderer);
 
         var guideTexture = _textureManager[GuideTextureKey];
-
         if (guideTexture != null)
         {
             using (_ = new RenderingTarget(_renderer, guideTexture))
             {
-                InternalSDL3.SetRenderDrawColor(_renderer, _esquireGuideThemeProvider.DefaultGuideBackground);
-                SDL.RenderClear(_renderer);
+                _ = InternalSDL3.SetRenderDrawColor(_renderer, _esquireGuideThemeProvider.DefaultGuideBackground);
+                _ = SDL.RenderClear(_renderer);
+
                 var y = 0 - _guideRowBaseY;
 
                 foreach (var row in _rowsTextureQueue)
@@ -359,14 +359,17 @@ public class GuideRunner : IDisposable
                         H = height
                     };
 
+                    // Is clipping occurring here because I'm rendering into negative space?
+                    // Should I instead be using a srcrect and a destrect that is anchored to zero x,y?
                     _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
+
                     y += height;
 
                     _guideRowBaseY += ((_thirtyFpsLimit ? 0.125f : 0.0625f) + _scrollSpeed) * Configuration.Scale;
                 }
 
                 // If the baseY position is the same as its height, dequeue it.
-                SDL.GetTextureSize(_rowsTextureQueue.First().SdlTexture, out _, out var firstH);
+                _ = SDL.GetTextureSize(_rowsTextureQueue.First().SdlTexture, out _, out var firstH);
                 if (_guideRowBaseY >= firstH)
                 {
                     _ = _rowsTextureQueue.Dequeue();
@@ -380,7 +383,6 @@ public class GuideRunner : IDisposable
             {
                 X = Configuration.X,
                 Y = Configuration.RenderedHeight - (175 * Configuration.Scale),
-                // Y = Configuration.Y,
                 W = Configuration.RenderedWidth,
                 H = Configuration.RenderedHeight
             };
@@ -434,8 +436,8 @@ public class GuideRunner : IDisposable
 
         var lineHeight = _fontManager.FontConfigurations[FiraCodeFontKey].PointSize;
 
-        SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
-        var rect = new SDL.FRect
+        _ = SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
+        var fRect = new SDL.FRect
         {
             W = width,
             H = height,
@@ -443,7 +445,7 @@ public class GuideRunner : IDisposable
             Y = Configuration.RenderedHeight - lineHeight * Configuration.Scale
         };
 
-        _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
+        _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, fRect);
     }
 
     private void RenderLogs()
@@ -473,15 +475,15 @@ public class GuideRunner : IDisposable
             if (texture == null)
                 continue;
 
-            SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
-            var rect = new SDL.FRect
+            _ = SDL.GetTextureSize(texture.SdlTexture, out var width, out var height);
+            var fRect = new SDL.FRect
             {
                 W = width,
                 H = height,
                 X = Configuration.WindowWidth - width,
                 Y = y
             };
-            _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, rect);
+            _ = SDL.RenderTexture(_renderer, texture.SdlTexture, IntPtr.Zero, fRect);
             y += lineHeight * Configuration.Scale;
         }
     }
