@@ -16,5 +16,6 @@ public interface IGuideThemeProvider
 
     void SetRenderer(nint renderer);
 
+    Texture GetTimeBarTexture();
     IEnumerable<Texture> GenerateRows(IEnumerable<IListing> listings);
 }

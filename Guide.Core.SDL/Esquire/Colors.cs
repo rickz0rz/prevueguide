@@ -11,4 +11,5 @@ public static class Colors
     public static SDL3.SDL.Color Gray85 = new() { A = 255, B = 85, G = 85, R = 85 };
     public static SDL3.SDL.Color Gray170 = new() { A = 255, R = 170, G = 170, B = 170 };
     public static SDL3.SDL.Color Yellow = new() { A = 255, R = 203, G = 209, B = 0 };
+    public static SDL3.SDL.Color Magenta = new() { A = 255, R = 255, G = 0, B = 255 };
 }

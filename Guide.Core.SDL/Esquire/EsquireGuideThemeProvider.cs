@@ -48,6 +48,11 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         _renderer = renderer;
     }
 
+    public Texture GetTimeBarTexture()
+    {
+        return GenerateTimeBarListingTexture(new TimeBarListing(DateTime.Now));
+    }
+
     public SDL3.SDL.Color DefaultGuideBackground => Colors.Blue48;
     public int DefaultWindowWidth => 716;
     public int DefaultWindowHeight => 436;
@@ -88,6 +93,8 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
     public IEnumerable<Texture> GenerateRows(IEnumerable<IListing> listings)
     {
+        _logger.LogInformation("Generating rows");
+
         // Will change this to group by channels.
         foreach (var listing in listings)
         {
@@ -302,6 +309,12 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
     private Texture GenerateTimeBarListingTexture(TimeBarListing timeBarListing)
     {
+        // Fix it so the left and right edges are dark
+        // Draw the frames with half hour times
+        // Provide mechanism to draw time (even if that's taking the old time and doing away with it by clearing it with
+        //   a rect and redrawing a frame...
+        // Allow times to 'roll-in' to update the frame times
+
         var screenScaledWidth = Configuration.UnscaledDrawableWidth - ChannelColumnWidth - LastColumnWidth;
         var columnsCount = screenScaledWidth / StandardColumnWidth;
         var guideTextureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);

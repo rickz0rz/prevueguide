@@ -30,6 +30,7 @@ public class GuideRunner : IDisposable
     private const string FiraCodeFontKey = "FiraCode";
     private const string FpsTextureKey = "fps";
     private const string GuideTextureKey = "guide";
+    private const string TimeBarTextureKey = "timeBar";
 
     private readonly ILogger _logger;
     private readonly TextureManager _textureManager;
@@ -51,7 +52,6 @@ public class GuideRunner : IDisposable
     private FullscreenMode _currentFullscreenMode;
     private long _lastLinesLoggedCount = -1;
     private float _guideRowBaseY;
-    private float _scrollSpeed;
 
     private bool _highDpi = true;
 
@@ -233,16 +233,6 @@ public class GuideRunner : IDisposable
             {
                 switch (sdlEvent.Key.Key)
                 {
-                    case SDL.Keycode.Equals:
-                        _scrollSpeed += 0.125f;
-                        _logger.LogInformation("Scroll speed increased: {Speed}", _scrollSpeed);
-                        break;
-                    case SDL.Keycode.Minus:
-                        _scrollSpeed -= 0.125f;
-                        if (_scrollSpeed < 0)
-                            _scrollSpeed = 0f;
-                        _logger.LogInformation("Scroll speed reduced: {Speed}", _scrollSpeed);
-                        break;
                     case SDL.Keycode.D:
                         _ = _rowsTextureQueue.Dequeue();
                         _logger.LogInformation("Destroying current first row texture");
@@ -303,6 +293,7 @@ public class GuideRunner : IDisposable
         try
         {
             _textureManager[GuideTextureKey] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
+            _textureManager[TimeBarTextureKey] = _esquireGuideThemeProvider.GetTimeBarTexture();
 
             while (_rowsTextureQueue.Count > 0)
             {
@@ -332,9 +323,12 @@ public class GuideRunner : IDisposable
     // Hacky thing: How do I add extra records to the queue?
     private void Render()
     {
+        const int guideHeight = 175;
+        const int timeBarHeight = 34;
+
         _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
 
-        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black0);
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Magenta);
         _ = SDL.RenderClear(_renderer);
 
         var guideTexture = _textureManager[GuideTextureKey];
@@ -359,13 +353,11 @@ public class GuideRunner : IDisposable
                         H = height
                     };
 
-                    // Is clipping occurring here because I'm rendering into negative space?
-                    // Should I instead be using a srcrect and a destrect that is anchored to zero x,y?
                     _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
 
                     y += height;
 
-                    _guideRowBaseY += ((_thirtyFpsLimit ? 0.125f : 0.0625f) + _scrollSpeed) * Configuration.Scale;
+                    _guideRowBaseY += (_thirtyFpsLimit ? 0.125f : 0.0625f) * Configuration.Scale;
                 }
 
                 // If the baseY position is the same as its height, dequeue it.
@@ -378,15 +370,28 @@ public class GuideRunner : IDisposable
                 }
             }
 
-            // ESQ hardcoded value: Guide position = 175 from the bottom not including time bar.
             var guideFRect = new SDL.FRect
             {
                 X = Configuration.X,
-                Y = Configuration.RenderedHeight - (175 * Configuration.Scale),
+                Y = Configuration.RenderedHeight - (guideHeight * Configuration.Scale),
                 W = Configuration.RenderedWidth,
                 H = Configuration.RenderedHeight
             };
             _ = SDL.RenderTexture(_renderer, guideTexture.SdlTexture, IntPtr.Zero, guideFRect);
+        }
+
+        var timeBarTexture = _textureManager[TimeBarTextureKey];
+        if (timeBarTexture != null)
+        {
+            _ = SDL.GetTextureSize(timeBarTexture.SdlTexture, out var _, out var height);
+            var timeBarFRect = new SDL.FRect
+            {
+                X = Configuration.X,
+                Y = Configuration.RenderedHeight - ((guideHeight + timeBarHeight) * Configuration.Scale),
+                W = Configuration.RenderedWidth,
+                H = height / Configuration.Scale
+            };
+            _ = SDL.RenderTexture(_renderer, timeBarTexture.SdlTexture, IntPtr.Zero, timeBarFRect);
         }
 
         if (_showLogs) RenderLogs();
@@ -397,6 +402,8 @@ public class GuideRunner : IDisposable
 
     private void FillRowTextureQueue()
     {
+        _logger.LogInformation("Filling row texture queue");
+
         while (GetQueueHeight() - _guideRowBaseY < Configuration.RenderedHeight)
         {
             if (!_rowsTextureSource.MoveNext())
