@@ -5,10 +5,24 @@ namespace Guide.Core.SDL.Wrappers;
 public class Texture : IDisposable
 {
     public IntPtr SdlTexture { get; }
+    private (float w, float h)? _size;
 
     public Texture(IntPtr sdlTexture)
     {
         SdlTexture = sdlTexture;
+    }
+
+    public (float w, float h) Size
+    {
+        get
+        {
+            if (_size.HasValue)
+                return _size.Value;
+
+            SDL3.SDL.GetTextureSize(SdlTexture, out var w, out var h);
+            _size = new ValueTuple<float, float>(w, h);
+            return _size.Value;
+        }
     }
 
     public Texture(IntPtr renderer, int width, int height)

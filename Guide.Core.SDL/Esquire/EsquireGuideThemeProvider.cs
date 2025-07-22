@@ -244,15 +244,13 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
                     using (var listingLine = new Texture(GenerateDropShadowText(_renderer,
                                _fontManager[EsquireGuideFontName], string.IsNullOrWhiteSpace(textLine) ? " " : textLine, Colors.Gray170)))
                     {
-                        _ = SDL3.SDL.GetTextureSize(listingLine.SdlTexture, out var w, out var h);
-
                         var computedLeftMargin = lineNumber < 2 ? leftMargin : 0;
                         var rect = new SDL3.SDL.FRect
                         {
                             X = (BevelMargin + computedLeftMargin) * Configuration.Scale,
                             Y = (BevelMargin + yOffset) * Configuration.Scale,
-                            W = w,
-                            H = h
+                            W = listingLine.Size.w,
+                            H = listingLine.Size.h
                         };
 
                         _ = SDL3.SDL.RenderTexture(_renderer, listingLine.SdlTexture, IntPtr.Zero, rect);
@@ -268,11 +266,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             programTextures.Add(programTexture);
         }
 
-        var maximumTextureHeight = programTextures.Max(programTexture =>
-        {
-            _ = SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
-            return h;
-        }) / Configuration.Scale;
+        var maximumTextureHeight = programTextures.Max(programTexture => programTexture.Size.h) / Configuration.Scale;
 
         var rowTexture = new Texture(_renderer, textureWidth, (int)maximumTextureHeight);
 
@@ -290,17 +284,16 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         {
             using (_ = new RenderingTarget(_renderer, rowTexture))
             {
-                _ = SDL3.SDL.GetTextureSize(programTexture.SdlTexture, out var w, out var h);
                 var fRect = new SDL3.SDL.FRect
                 {
                     X = nextXPosition,
                     Y = 0,
-                    W = w,
-                    H = h
+                    W = programTexture.Size.w,
+                    H = programTexture.Size.h
                 };
 
                 _ = SDL3.SDL.RenderTexture(_renderer, programTexture.SdlTexture, IntPtr.Zero, fRect);
-                nextXPosition += w;
+                nextXPosition += programTexture.Size.w;
             }
         }
 
@@ -326,6 +319,8 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             _ = SDL3.SDL.RenderClear(_renderer);
         }
 
+        Frame.CreateBevelOnTexture(_renderer, timeBarTexture);
+
         return timeBarTexture;
     }
 
@@ -336,8 +331,7 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
         var guideTextureWidth = ChannelColumnWidth + LastColumnWidth + (columnsCount * StandardColumnWidth);
 
         using var openedImageTexture = new Texture(_logger, _renderer, imageListing.Filename);
-        _ = SDL3.SDL.GetTextureSize(openedImageTexture.SdlTexture, out var w, out var h);
-        var imageTexture = new Texture(_renderer, guideTextureWidth, (int)h);
+        var imageTexture = new Texture(_renderer, guideTextureWidth, (int)openedImageTexture.Size.h);
 
         using (_ = new RenderingTarget(_renderer, imageTexture))
         {
@@ -349,10 +343,10 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
             var dstRect = new SDL3.SDL.FRect
             {
-                X = ((guideTextureWidth - w) / 2) * Configuration.Scale,
+                X = ((guideTextureWidth - openedImageTexture.Size.w) / 2) * Configuration.Scale,
                 Y = 0,
-                W = w * Configuration.Scale,
-                H = h * Configuration.Scale
+                W = openedImageTexture.Size.w * Configuration.Scale,
+                H = openedImageTexture.Size.h * Configuration.Scale
             };
 
             _ = SDL3.SDL.RenderTexture(_renderer, openedImageTexture.SdlTexture, IntPtr.Zero, dstRect);
@@ -380,23 +374,21 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
             var selectedFont = _fontManager.FontConfigurations[EsquireGuideFontName];
 
-            _ = SDL3.SDL.GetTextureSize(channelLine1.SdlTexture, out var w1, out var h1);
-            var xOffset1 = (90 - (w1 / Configuration.Scale) / 2) - 1;
+            var xOffset1 = (90 - (channelLine1.Size.w / Configuration.Scale) / 2) - 1;
             var dstRect1 = new SDL3.SDL.FRect
             {
-                H = h1,
-                W = w1,
+                H = channelLine1.Size.h,
+                W = channelLine1.Size.w,
                 X = (xOffset1 + selectedFont.XOffset) * Configuration.Scale,
                 Y = BevelMargin * Configuration.Scale
             };
             _ = SDL3.SDL.RenderTexture(_renderer, channelLine1.SdlTexture, IntPtr.Zero, dstRect1);
 
-            _ = SDL3.SDL.GetTextureSize(channelLine2.SdlTexture, out var w2, out var h2);
-            var xOffset2 = (90 - (w2 / Configuration.Scale) / 2) - 1;
+            var xOffset2 = (90 - (channelLine2.Size.w / Configuration.Scale) / 2) - 1;
             var dstRect2 = new SDL3.SDL.FRect
             {
-                H = h2,
-                W = w2,
+                H = channelLine2.Size.h,
+                W = channelLine2.Size.w,
                 X = (xOffset2 + selectedFont.XOffset) * Configuration.Scale,
                 Y = (selectedFont.PointSize + BevelMargin) * Configuration.Scale
             };
@@ -407,18 +399,16 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
 
         using (_ = new RenderingTarget(_renderer, rowTexture))
         {
-            _ = SDL3.SDL.GetTextureSize(channelTexture.SdlTexture, out var w, out var h);
-
             var fRect = new SDL3.SDL.FRect
             {
                 X = 0f,
                 Y = 0f,
-                H = h,
-                W = w
+                H = channelTexture.Size.h,
+                W = channelTexture.Size.w
             };
 
             _ = SDL3.SDL.RenderTexture(_renderer, channelTexture.SdlTexture, IntPtr.Zero, fRect);
-            nextXPosition = w;
+            nextXPosition = channelTexture.Size.w;
         }
 
         return nextXPosition;
@@ -733,27 +723,23 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
             _ = SDL3.SDL.RenderClear(renderer);
 
             // Draw clock, black shadow outline
-            _ = SDL3.SDL.GetTextureSize(outlineTexture.SdlTexture, out var w1, out var h1);
             var dstRect1 = new SDL3.SDL.FRect
-                { H = h1, W = w1, X = horizontalOffset * Configuration.Scale, Y = verticalOffset * Configuration.Scale };
+                { H = outlineTexture.Size.h, W = outlineTexture.Size.w, X = horizontalOffset * Configuration.Scale, Y = verticalOffset * Configuration.Scale };
             _ = SDL3.SDL.RenderTexture(renderer, outlineTexture.SdlTexture, IntPtr.Zero, dstRect1);
 
             // Draw clock, black shadow main
-            _ = SDL3.SDL.GetTextureSize(shadowTexture.SdlTexture, out var w2, out var h2);
             var dstRect2 = new SDL3.SDL.FRect
-                { H = h2, W = w2, X = (horizontalOffset + 2) * Configuration.Scale, Y = (verticalOffset + 2) * Configuration.Scale };
+                { H = shadowTexture.Size.h, W = shadowTexture.Size.w, X = (horizontalOffset + 2) * Configuration.Scale, Y = (verticalOffset + 2) * Configuration.Scale };
             _ = SDL3.SDL.RenderTexture(renderer, shadowTexture.SdlTexture, IntPtr.Zero, dstRect2);
 
             // Draw clock, black outline
-            _ = SDL3.SDL.GetTextureSize(outlineTexture.SdlTexture, out var w3, out var h3);
             var dstRect3 = new SDL3.SDL.FRect
-                { H = h3, W = w3, X = (horizontalOffset - 1) * Configuration.Scale, Y = (verticalOffset - 1) * Configuration.Scale };
+                { H = outlineTexture.Size.h, W = outlineTexture.Size.w, X = (horizontalOffset - 1) * Configuration.Scale, Y = (verticalOffset - 1) * Configuration.Scale };
             _ = SDL3.SDL.RenderTexture(renderer, outlineTexture.SdlTexture, IntPtr.Zero, dstRect3);
 
             // Draw clock, main without outline
-            _ = SDL3.SDL.GetTextureSize(mainTexture.SdlTexture, out var w4, out var h4);
             var dstRect4 = new SDL3.SDL.FRect
-                { H = h4, W = w4, X = horizontalOffset * Configuration.Scale, Y = verticalOffset * Configuration.Scale };
+                { H = mainTexture.Size.h, W = mainTexture.Size.w, X = horizontalOffset * Configuration.Scale, Y = verticalOffset * Configuration.Scale };
             _ = SDL3.SDL.RenderTexture(renderer, mainTexture.SdlTexture, IntPtr.Zero, dstRect4);
         }
 

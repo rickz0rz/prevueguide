@@ -30,5 +30,5 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 
 logger.LogInformation("Current process ID: {processId}", System.Diagnostics.Process.GetCurrentProcess().Id);
 
-using var guide = new Guide.GuideRunner(logger);
+using var guide = new Guide.ScrollingGuideRunner(logger);
 guide.Run();

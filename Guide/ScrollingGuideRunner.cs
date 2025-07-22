@@ -24,8 +24,16 @@ namespace Guide;
 // https://github.com/sabdul-khabir/SDL3_gfx/tree/master use this to draw arrows?
 // Some shows starting at 5 minutes to aren't getting pushed into the right boundary
 // "Top content provider" ... provides images or videos, and a runtime (if necessary) to be rendered above the guide.
+// Don't regenerate the guide texture unless we've popped an image from it... maybe? What we can do is generate the texture
+//   and just move the srcRect on the guide runner up. That should be way quicker. This is also nice because all I have to do is
+//   keep the view filled. If the srcRect is going to outside the texture range.
 
-public class GuideRunner : IDisposable
+// Generate a guide texture that's at least as big as the current guide view.
+// Each frame, move the srcRect down 1 px with y initially set to 0
+// As soon as we hit the bottom of the texture, regenerate it by **purging any _non-visible_ entities**, pulling new visible ones,
+//   and substract the height of said non-visible entities from the y offset.
+
+public class ScrollingGuideRunner : IDisposable
 {
     private const string FiraCodeFontKey = "FiraCode";
     private const string FpsTextureKey = "fps";
@@ -51,14 +59,16 @@ public class GuideRunner : IDisposable
     private bool _thirtyFpsLimit;
     private FullscreenMode _currentFullscreenMode;
     private long _lastLinesLoggedCount = -1;
+    private float? _firstRowTextureHeight;
     private float _guideRowBaseY;
+    private bool _regenerateGuideTexture;
 
     private bool _highDpi = true;
 
     private IEnumerator<Texture> _rowsTextureSource;
     private ChannelsDVRListingsDataProvider provider;
 
-    public GuideRunner(ILogger logger)
+    public ScrollingGuideRunner(ILogger logger)
     {
         if (!SDL.Init(SDL.InitFlags.Video))
         {
@@ -324,14 +334,25 @@ public class GuideRunner : IDisposable
     private void Render()
     {
         const int guideHeight = 175;
+        const int guideHeightPlusOneRow = guideHeight + 56;
         const int timeBarHeight = 34;
 
-        _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
+        if (_textureManager.ContainsKey(GuideTextureKey) && _regenerateGuideTexture)
+        {
+            _textureManager.PurgeTexture(GuideTextureKey);
+        }
 
+        if (!_textureManager.ContainsKey(GuideTextureKey))
+        {
+            _textureManager[GuideTextureKey] = new Texture(_renderer, _esquireGuideThemeProvider.DefaultWindowWidth, guideHeightPlusOneRow);
+        }
+
+        var guideTexture = _textureManager[GuideTextureKey];
+
+        _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
         _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Magenta);
         _ = SDL.RenderClear(_renderer);
 
-        var guideTexture = _textureManager[GuideTextureKey];
         if (guideTexture != null)
         {
             using (_ = new RenderingTarget(_renderer, guideTexture))
@@ -341,32 +362,32 @@ public class GuideRunner : IDisposable
 
                 var y = 0 - _guideRowBaseY;
 
-                foreach (var row in _rowsTextureQueue)
+                foreach (var rowTexture in _rowsTextureQueue)
                 {
-                    _ = SDL.GetTextureSize(row.SdlTexture, out var width, out var height);
-
                     var dstFRect = new SDL.FRect
                     {
-                        X = (Configuration.DrawableWidth - width) / 2,
+                        X = (Configuration.DrawableWidth - rowTexture.Size.w) / 2,
                         Y = y,
-                        W = width * _esquireGuideThemeProvider.ScaleRatio,
-                        H = height
+                        W = rowTexture.Size.w,
+                        H = rowTexture.Size.h
                     };
 
-                    _ = SDL.RenderTexture(_renderer, row.SdlTexture, IntPtr.Zero, dstFRect);
+                    _ = SDL.RenderTexture(_renderer, rowTexture.SdlTexture, IntPtr.Zero, dstFRect);
 
-                    y += height;
+                    y += rowTexture.Size.h;
 
                     _guideRowBaseY += (_thirtyFpsLimit ? 0.125f : 0.0625f) * Configuration.Scale;
                 }
 
+                _firstRowTextureHeight ??= _rowsTextureQueue.First().Size.h;
+
                 // If the baseY position is the same as its height, dequeue it.
-                _ = SDL.GetTextureSize(_rowsTextureQueue.First().SdlTexture, out _, out var firstH);
-                if (_guideRowBaseY >= firstH)
+                if (_guideRowBaseY >= _firstRowTextureHeight)
                 {
                     _ = _rowsTextureQueue.Dequeue();
                     FillRowTextureQueue();
                     _guideRowBaseY = 0f;
+                    _firstRowTextureHeight = null;
                 }
             }
 
@@ -374,8 +395,8 @@ public class GuideRunner : IDisposable
             {
                 X = Configuration.X,
                 Y = Configuration.RenderedHeight - (guideHeight * Configuration.Scale),
-                W = Configuration.RenderedWidth,
-                H = Configuration.RenderedHeight
+                W = guideTexture.Size.w,
+                H = guideTexture.Size.h
             };
             _ = SDL.RenderTexture(_renderer, guideTexture.SdlTexture, IntPtr.Zero, guideFRect);
         }
@@ -383,13 +404,12 @@ public class GuideRunner : IDisposable
         var timeBarTexture = _textureManager[TimeBarTextureKey];
         if (timeBarTexture != null)
         {
-            _ = SDL.GetTextureSize(timeBarTexture.SdlTexture, out var _, out var height);
             var timeBarFRect = new SDL.FRect
             {
                 X = Configuration.X,
                 Y = Configuration.RenderedHeight - ((guideHeight + timeBarHeight) * Configuration.Scale),
                 W = Configuration.RenderedWidth,
-                H = height / Configuration.Scale
+                H = timeBarTexture.Size.h / Configuration.Scale
             };
             _ = SDL.RenderTexture(_renderer, timeBarTexture.SdlTexture, IntPtr.Zero, timeBarFRect);
         }

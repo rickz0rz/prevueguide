@@ -24,6 +24,11 @@ public class TextureManager : IDisposable
         }
     }
 
+    public bool ContainsKey(string key)
+    {
+        return _textureMap.ContainsKey(key);
+    }
+
     public TextureManager(ILogger logger)
     {
         _logger = logger;
