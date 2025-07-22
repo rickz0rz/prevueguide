@@ -396,6 +396,8 @@ public class ScrollingGuideRunner : IDisposable
             // While the first texture's height is less than the y offset, purge and recalculate the y offset.
             while (_rowsTextureQueue.Any() && _rowsTextureQueue.First().Size.h <= _guideYSrcRectOffset)
             {
+                _logger.LogDebug("Guide adjustment: removing row texture");
+
                 using var first = _rowsTextureQueue.Dequeue();
                 _guideYSrcRectOffset -= (int)first.Size.h;
             }
@@ -403,19 +405,23 @@ public class ScrollingGuideRunner : IDisposable
             _regenerateGuideTexture = true;
         }
 
-        /*
         var timeBarTexture = _textureManager[TimeBarTextureKey];
-        if (timeBarTexture != null)
+
+        if (timeBarTexture == null)
         {
-            var timeBarFRect = new SDL.FRect
-            {
-                X = Configuration.X,
-                Y = Configuration.RenderedHeight - ((_esquireGuideThemeProvider.GuideHeight + _esquireGuideThemeProvider.TimeBarHeight) * Configuration.Scale),
-                W = Configuration.RenderedWidth,
-                H = timeBarTexture.Size.h / Configuration.Scale
-            };
-            _ = SDL.RenderTexture(_renderer, timeBarTexture.SdlTexture, IntPtr.Zero, timeBarFRect);
-        }*/
+            _textureManager[TimeBarTextureKey] = _esquireGuideThemeProvider.GetTimeBarTexture();
+            timeBarTexture = _textureManager[TimeBarTextureKey];
+        }
+
+        // Get the correct dimensions on this, and render it with the default background render color.
+        var timeBarFRect = new SDL.FRect
+        {
+            X = Configuration.X,
+            Y = Configuration.RenderedHeight - ((_esquireGuideThemeProvider.GuideHeight + _esquireGuideThemeProvider.TimeBarHeight) * Configuration.Scale),
+            W = Configuration.RenderedWidth,
+            H = timeBarTexture.Size.h / Configuration.Scale
+        };
+        _ = SDL.RenderTexture(_renderer, timeBarTexture.SdlTexture, IntPtr.Zero, timeBarFRect);
 
         if (_showLogs) RenderLogs();
         if (_showFps) RenderFps();
