@@ -22,13 +22,15 @@ public class EsquireGuideThemeProvider : IGuideThemeProvider, IDisposable
     private const string EsquireGuideFontName = "PrevueGrid";
 
     private const int ChannelColumnWidth = 144;
-    private const int StandardRowHeight = 56;
-    private const int TimeBarHeight = 34;
     private const int StandardColumnWidth = 172;
     private const int LastColumnWidth = StandardColumnWidth + 36;
     private const int SingleArrowWidth = 16;
     private const int DoubleArrowWidth = 24;
     private const int BevelMargin = Frame.BevelSize + 1;
+
+    public int GuideHeight => 175;
+    public int StandardRowHeight => 56;
+    public int TimeBarHeight => 34;
 
     private nint _renderer;
 

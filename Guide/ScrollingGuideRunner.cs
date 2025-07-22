@@ -59,9 +59,8 @@ public class ScrollingGuideRunner : IDisposable
     private bool _thirtyFpsLimit;
     private FullscreenMode _currentFullscreenMode;
     private long _lastLinesLoggedCount = -1;
-    private float? _firstRowTextureHeight;
-    private float _guideRowBaseY;
-    private bool _regenerateGuideTexture;
+    private bool _regenerateGuideTexture = true;
+    private int _guideYSrcRectOffset;
 
     private bool _highDpi = true;
 
@@ -246,7 +245,7 @@ public class ScrollingGuideRunner : IDisposable
                     case SDL.Keycode.D:
                         _ = _rowsTextureQueue.Dequeue();
                         _logger.LogInformation("Destroying current first row texture");
-                        FillRowTextureQueue();
+                        FillRowTexturesQueue();
                         break;
                     case SDL.Keycode.F:
                         _fullscreen = !_fullscreen;
@@ -302,9 +301,6 @@ public class ScrollingGuideRunner : IDisposable
     {
         try
         {
-            _textureManager[GuideTextureKey] = new Texture(_renderer, Configuration.UnscaledDrawableWidth, Configuration.UnscaledDrawableHeight);
-            _textureManager[TimeBarTextureKey] = _esquireGuideThemeProvider.GetTimeBarTexture();
-
             while (_rowsTextureQueue.Count > 0)
             {
                 _rowsTextureQueue.Dequeue().Dispose();
@@ -312,8 +308,6 @@ public class ScrollingGuideRunner : IDisposable
 
             var listings = provider.GetEntries().ToBlockingEnumerable();
             _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
-
-            FillRowTextureQueue();
         }
         catch (Exception ex)
         {
@@ -323,48 +317,41 @@ public class ScrollingGuideRunner : IDisposable
 
     private int GetQueueHeight()
     {
-        return _rowsTextureQueue.Select(texture =>
-        {
-            _ = SDL.GetTextureSize(texture.SdlTexture, out _, out var h);
-            return (int)h;
-        }).Sum();
+        return _rowsTextureQueue.Select(texture => (int)texture.Size.h).Sum();
     }
 
     // Hacky thing: How do I add extra records to the queue?
     private void Render()
     {
-        const int guideHeight = 175;
-        const int guideHeightPlusOneRow = guideHeight + 56;
-        const int timeBarHeight = 34;
-
-        if (_textureManager.ContainsKey(GuideTextureKey) && _regenerateGuideTexture)
+        if (_regenerateGuideTexture)
         {
+            _regenerateGuideTexture = false;
             _textureManager.PurgeTexture(GuideTextureKey);
         }
 
-        if (!_textureManager.ContainsKey(GuideTextureKey))
-        {
-            _textureManager[GuideTextureKey] = new Texture(_renderer, _esquireGuideThemeProvider.DefaultWindowWidth, guideHeightPlusOneRow);
-        }
-
         var guideTexture = _textureManager[GuideTextureKey];
-
-        _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
-        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Magenta);
-        _ = SDL.RenderClear(_renderer);
-
-        if (guideTexture != null)
+        if (guideTexture == null)
         {
+            _textureManager[GuideTextureKey] = new Texture(_renderer,
+                _esquireGuideThemeProvider.DefaultWindowWidth,
+                _esquireGuideThemeProvider.StandardRowHeight
+                    + _esquireGuideThemeProvider.GuideHeight
+                    + (_guideYSrcRectOffset / Configuration.Scale));
+
+            guideTexture = _textureManager[GuideTextureKey];
+
+            FillRowTexturesQueue();
+
             using (_ = new RenderingTarget(_renderer, guideTexture))
             {
                 _ = InternalSDL3.SetRenderDrawColor(_renderer, _esquireGuideThemeProvider.DefaultGuideBackground);
                 _ = SDL.RenderClear(_renderer);
 
-                var y = 0 - _guideRowBaseY;
+                var y = 0f;
 
                 foreach (var rowTexture in _rowsTextureQueue)
                 {
-                    var dstFRect = new SDL.FRect
+                    var rowDstFRect = new SDL.FRect
                     {
                         X = (Configuration.DrawableWidth - rowTexture.Size.w) / 2,
                         Y = y,
@@ -372,47 +359,63 @@ public class ScrollingGuideRunner : IDisposable
                         H = rowTexture.Size.h
                     };
 
-                    _ = SDL.RenderTexture(_renderer, rowTexture.SdlTexture, IntPtr.Zero, dstFRect);
+                    _ = SDL.RenderTexture(_renderer, rowTexture.SdlTexture, IntPtr.Zero, rowDstFRect);
 
                     y += rowTexture.Size.h;
-
-                    _guideRowBaseY += (_thirtyFpsLimit ? 0.125f : 0.0625f) * Configuration.Scale;
-                }
-
-                _firstRowTextureHeight ??= _rowsTextureQueue.First().Size.h;
-
-                // If the baseY position is the same as its height, dequeue it.
-                if (_guideRowBaseY >= _firstRowTextureHeight)
-                {
-                    _ = _rowsTextureQueue.Dequeue();
-                    FillRowTextureQueue();
-                    _guideRowBaseY = 0f;
-                    _firstRowTextureHeight = null;
                 }
             }
-
-            var guideFRect = new SDL.FRect
-            {
-                X = Configuration.X,
-                Y = Configuration.RenderedHeight - (guideHeight * Configuration.Scale),
-                W = guideTexture.Size.w,
-                H = guideTexture.Size.h
-            };
-            _ = SDL.RenderTexture(_renderer, guideTexture.SdlTexture, IntPtr.Zero, guideFRect);
         }
 
+        _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Magenta);
+        _ = SDL.RenderClear(_renderer);
+
+        var guideDstFRect = new SDL.FRect
+        {
+            X = Configuration.X,
+            Y = Configuration.RenderedHeight - (_esquireGuideThemeProvider.GuideHeight * Configuration.Scale),
+            W = guideTexture.Size.w,
+            H = _esquireGuideThemeProvider.GuideHeight * Configuration.Scale
+        };
+
+        var srcRect = new SDL.FRect
+        {
+            X = 0,
+            Y = _guideYSrcRectOffset,
+            W = guideTexture.Size.w,
+            H = _esquireGuideThemeProvider.GuideHeight * Configuration.Scale
+        };
+
+        _ = SDL.RenderTexture(_renderer, guideTexture.SdlTexture, srcRect, guideDstFRect);
+
+        _guideYSrcRectOffset++;
+
+        // Determine if the offset pushes us to the bottom of the guide texture.
+        if (_guideYSrcRectOffset + (_esquireGuideThemeProvider.GuideHeight * Configuration.Scale) > guideTexture.Size.h)
+        {
+            // While the first texture's height is less than the y offset, purge and recalculate the y offset.
+            while (_rowsTextureQueue.Any() && _rowsTextureQueue.First().Size.h <= _guideYSrcRectOffset)
+            {
+                using var first = _rowsTextureQueue.Dequeue();
+                _guideYSrcRectOffset -= (int)first.Size.h;
+            }
+
+            _regenerateGuideTexture = true;
+        }
+
+        /*
         var timeBarTexture = _textureManager[TimeBarTextureKey];
         if (timeBarTexture != null)
         {
             var timeBarFRect = new SDL.FRect
             {
                 X = Configuration.X,
-                Y = Configuration.RenderedHeight - ((guideHeight + timeBarHeight) * Configuration.Scale),
+                Y = Configuration.RenderedHeight - ((_esquireGuideThemeProvider.GuideHeight + _esquireGuideThemeProvider.TimeBarHeight) * Configuration.Scale),
                 W = Configuration.RenderedWidth,
                 H = timeBarTexture.Size.h / Configuration.Scale
             };
             _ = SDL.RenderTexture(_renderer, timeBarTexture.SdlTexture, IntPtr.Zero, timeBarFRect);
-        }
+        }*/
 
         if (_showLogs) RenderLogs();
         if (_showFps) RenderFps();
@@ -420,21 +423,26 @@ public class ScrollingGuideRunner : IDisposable
         _ = SDL.RenderPresent(_renderer);
     }
 
-    private void FillRowTextureQueue()
+    private void FillRowTexturesQueue()
     {
-        _logger.LogInformation("Filling row texture queue");
+        // _logger.LogInformation("Filling guide texture from row textures queue");
 
-        while (GetQueueHeight() - _guideRowBaseY < Configuration.RenderedHeight)
+        // We always want to have at least the guide visible height plus another row visible.
+        if (_textureManager[GuideTextureKey] != null)
         {
-            if (!_rowsTextureSource.MoveNext())
+            while (GetQueueHeight() < _textureManager[GuideTextureKey].Size.h)
             {
-                _logger.LogInformation("Filling row queue");
-                var listings = provider.GetEntries().ToBlockingEnumerable();
-                _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
-                _rowsTextureSource.MoveNext();
-            }
+                if (!_rowsTextureSource.MoveNext())
+                {
+                    _logger.LogInformation("Regenerating row texture source");
 
-            _rowsTextureQueue.Enqueue(_rowsTextureSource.Current);
+                    var listings = provider.GetEntries().ToBlockingEnumerable();
+                    _rowsTextureSource = _esquireGuideThemeProvider.GenerateRows(listings).GetEnumerator();
+                    _rowsTextureSource.MoveNext();
+                }
+
+                _rowsTextureQueue.Enqueue(_rowsTextureSource.Current);
+            }
         }
     }
 

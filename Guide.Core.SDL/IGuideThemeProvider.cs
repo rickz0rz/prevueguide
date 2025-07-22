@@ -13,6 +13,9 @@ public interface IGuideThemeProvider
     int DefaultWindowHeight { get; }
     float ScaleRatio { get; }
     FullscreenMode DefaultFullscreenMode { get; }
+    int GuideHeight { get; }
+    int StandardRowHeight { get; }
+    int TimeBarHeight { get; }
 
     void SetRenderer(nint renderer);
 

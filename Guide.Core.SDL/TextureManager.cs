@@ -11,7 +11,7 @@ public class TextureManager : IDisposable
 
     public Texture? this[string key]
     {
-        get => _textureMap[key];
+        get => _textureMap.GetValueOrDefault(key);
         set
         {
             _logger.LogDebug($"Setting texture {key}");

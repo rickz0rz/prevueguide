@@ -14,8 +14,6 @@ public class RenderingTarget : IDisposable
 
     public RenderingTarget(IntPtr renderer, Texture texture)
     {
-        ArgumentNullException.ThrowIfNull(texture);
-
         _renderer = renderer;
         _previousRenderTarget = SDL3.SDL.GetRenderTarget(_renderer);
         _ = SDL3.SDL.SetRenderTarget(_renderer, texture.SdlTexture);
