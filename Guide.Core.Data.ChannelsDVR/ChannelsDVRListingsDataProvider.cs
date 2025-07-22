@@ -29,10 +29,13 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 
     public async IAsyncEnumerable<IListing> GetEntries()
     {
+        var returnedChannels = false;
+
         // Get the current time to determine the half-hours we're showing.
         var now = DateTime.Now;
         var startTime = Time.ClampToNextHalfHourIfTenMinutesAway(now);
 
+        // Time bar, logo, copyright text will all be returned via other data providers eventually.
         // yield return new TimeBarListing(startTime);
         yield return new ImageListing("assets/images/guide-channel.png");
 
@@ -47,6 +50,8 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 
         if (GuideChannelNumber.HasValue)
         {
+            returnedChannels = true;
+
             yield return new ChannelListing
             {
                 CallSign = "GUIDE",
@@ -72,6 +77,8 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
 
         foreach (var guideElement in _guideJsonData.RootElement.EnumerateArray())
         {
+            returnedChannels = true;
+
             var channelElement = guideElement.GetProperty("Channel");
             var channelListing = new ChannelListing();
 
@@ -143,6 +150,11 @@ public class ChannelsDVRListingsDataProvider : IListingsDataProvider
             }
 
             yield return channelListing;
+        }
+
+        if (!returnedChannels)
+        {
+            // Return a ER007 dialog.
         }
     }
 

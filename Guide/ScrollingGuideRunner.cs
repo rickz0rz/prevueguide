@@ -24,14 +24,6 @@ namespace Guide;
 // https://github.com/sabdul-khabir/SDL3_gfx/tree/master use this to draw arrows?
 // Some shows starting at 5 minutes to aren't getting pushed into the right boundary
 // "Top content provider" ... provides images or videos, and a runtime (if necessary) to be rendered above the guide.
-// Don't regenerate the guide texture unless we've popped an image from it... maybe? What we can do is generate the texture
-//   and just move the srcRect on the guide runner up. That should be way quicker. This is also nice because all I have to do is
-//   keep the view filled. If the srcRect is going to outside the texture range.
-
-// Generate a guide texture that's at least as big as the current guide view.
-// Each frame, move the srcRect down 1 px with y initially set to 0
-// As soon as we hit the bottom of the texture, regenerate it by **purging any _non-visible_ entities**, pulling new visible ones,
-//   and substract the height of said non-visible entities from the y offset.
 
 public class ScrollingGuideRunner : IDisposable
 {
@@ -367,7 +359,7 @@ public class ScrollingGuideRunner : IDisposable
         }
 
         _ = SDL.SetRenderTarget(_renderer, IntPtr.Zero);
-        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Magenta);
+        _ = InternalSDL3.SetRenderDrawColor(_renderer, Colors.Black0);
         _ = SDL.RenderClear(_renderer);
 
         var guideDstFRect = new SDL.FRect
